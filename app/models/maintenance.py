@@ -1,5 +1,16 @@
 from sqlalchemy import Column, String, Text, ForeignKey, DateTime, Boolean
-from sqlalchemy.dialects.postgresql import UUID
+import os
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./test_condosmart.db")
+USE_SQLITE = "sqlite" in DATABASE_URL
+if USE_SQLITE:
+    from sqlalchemy import String
+    UUID = String(36)
+else:
+    UUID = PostgresUUID(as_uuid=True)
+
+from app.db import USE_SQLITE
+from sqlalchemy import String
+UUID = String(36) if USE_SQLITE else PostgresUUID(as_uuid=True)
 from sqlalchemy.orm import relationship
 import uuid
 from datetime import datetime
