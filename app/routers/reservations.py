@@ -1,0 +1,140 @@
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+from typing import List
+from datetime import datetime
+
+from app.db import get_db
+from app.models import Reservation, User
+from app.schemas.reservation import ReservationCreate, ReservationResponse
+from app.auth import get_current_user
+
+router = APIRouter()
+
+@router.post("/", response_model=ReservationResponse, status_code=status.HTTP_201_CREATED)
+def create_reservation(
+    reservation_data: ReservationCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    if not current_user.condominium_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User must belong to a condominium"
+        )
+    
+    if reservation_data.start_time >= reservation_data.end_time:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="End time must be after start time"
+        )
+    
+    conflicting = db.query(Reservation).filter(
+        Reservation.condominium_id == current_user.condominium_id,
+        Reservation.facility_type == reservation_data.facility_type,
+        Reservation.status == "confirmed",
+        Reservation.start_time < reservation_data.end_time,
+        Reservation.end_time > reservation_data.start_time
+    ).first()
+    
+    if conflicting:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Time slot already reserved"
+        )
+    
+    new_reservation = Reservation(
+        condominium_id=current_user.condominium_id,
+        user_id=current_user.id,
+        unit_id=reservation_data.unit_id or current_user.unit_id,
+        facility_type=reservation_data.facility_type,
+        start_time=reservation_data.start_time,
+        end_time=reservation_data.end_time,
+        status="confirmed"
+    )
+    db.add(new_reservation)
+    db.commit()
+    db.refresh(new_reservation)
+    return new_reservation
+
+@router.get("/", response_model=List[ReservationResponse])
+def get_reservations(
+    facility_type: str = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    query = db.query(Reservation)
+    
+    if current_user.role == "resident":
+        query = query.filter(Reservation.user_id == current_user.id)
+    elif current_user.role in ["admin", "super_admin"]:
+        query = query.filter(Reservation.condominium_id == current_user.condominium_id)
+    
+    if facility_type:
+        query = query.filter(Reservation.facility_type == facility_type)
+    
+    reservations = query.order_by(Reservation.start_time.asc()).all()
+    return reservations
+
+@router.get("/availability")
+def get_availability(
+    facility_type: str,
+    date: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    if not current_user.condominium_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User must belong to a condominium"
+        )
+    
+    target_date = datetime.fromisoformat(date)
+    start_of_day = target_date.replace(hour=0, minute=0, second=0)
+    end_of_day = target_date.replace(hour=23, minute=59, second=59)
+    
+    reservations = db.query(Reservation).filter(
+        Reservation.condominium_id == current_user.condominium_id,
+        Reservation.facility_type == facility_type,
+        Reservation.status == "confirmed",
+        Reservation.start_time >= start_of_day,
+        Reservation.start_time <= end_of_day
+    ).all()
+    
+    booked_slots = []
+    for res in reservations:
+        booked_slots.append({
+            "start": res.start_time.isoformat(),
+            "end": res.end_time.isoformat()
+        })
+    
+    return {"facility_type": facility_type, "date": date, "booked_slots": booked_slots}
+
+@router.delete("/{reservation_id}", status_code=status.HTTP_204_NO_CONTENT)
+def cancel_reservation(
+    reservation_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    reservation = db.query(Reservation).filter(Reservation.id == reservation_id).first()
+    
+    if not reservation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Reservation not found"
+        )
+    
+    if current_user.role == "resident" and reservation.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized"
+        )
+    
+    time_until_start = (reservation.start_time - datetime.utcnow()).total_seconds() / 3600
+    
+    if time_until_start < 24:
+        reservation.cancellation_fee = 100.00
+    
+    reservation.status = "cancelled"
+    db.commit()
+    return None
+

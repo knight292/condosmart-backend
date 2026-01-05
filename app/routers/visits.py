@@ -1,0 +1,134 @@
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+from typing import List
+from datetime import datetime
+import qrcode
+import io
+import base64
+import uuid as uuid_lib
+
+from app.db import get_db
+from app.models import Visit, User
+from app.schemas.visit import VisitCreate, VisitResponse, VisitScan
+from app.auth import get_current_user
+
+router = APIRouter()
+
+def generate_qr_code(data: str) -> str:
+    qr = qrcode.QRCode(version=1, box_size=10, border=5)
+    qr.add_data(data)
+    qr.make(fit=True)
+    img = qr.make_image(fill_color="black", back_color="white")
+    buffer = io.BytesIO()
+    img.save(buffer, format="PNG")
+    img_str = base64.b64encode(buffer.getvalue()).decode()
+    return f"data:image/png;base64,{img_str}"
+
+@router.post("/generate", response_model=VisitResponse, status_code=status.HTTP_201_CREATED)
+def generate_visit(
+    visit_data: VisitCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    if not current_user.condominium_id or not current_user.unit_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User must belong to a condominium and unit"
+        )
+    
+    qr_code_value = str(uuid_lib.uuid4())
+    
+    new_visit = Visit(
+        condominium_id=current_user.condominium_id,
+        unit_id=current_user.unit_id,
+        visitor_name=visit_data.visitor_name,
+        visitor_phone=visit_data.visitor_phone,
+        qr_code=qr_code_value,
+        valid_until=visit_data.valid_until,
+        status="pending"
+    )
+    db.add(new_visit)
+    db.commit()
+    db.refresh(new_visit)
+    
+    return new_visit
+
+@router.get("/qr/{visit_id}")
+def get_qr_code(
+    visit_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    visit = db.query(Visit).filter(
+        Visit.id == visit_id,
+        Visit.condominium_id == current_user.condominium_id
+    ).first()
+    
+    if not visit:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Visit not found"
+        )
+    
+    qr_image = generate_qr_code(visit.qr_code)
+    return {"qr_code": visit.qr_code, "qr_image": qr_image}
+
+@router.post("/scan", response_model=VisitResponse)
+def scan_visit(
+    scan_data: VisitScan,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    if current_user.role not in ["guard", "admin", "super_admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only guards and admins can scan visits"
+        )
+    
+    visit = db.query(Visit).filter(Visit.qr_code == scan_data.qr_code).first()
+    
+    if not visit:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Invalid QR code"
+        )
+    
+    if visit.status == "checked_out":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Visit already checked out"
+        )
+    
+    if datetime.utcnow() > visit.valid_until:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="QR code expired"
+        )
+    
+    if visit.status == "pending":
+        visit.status = "checked_in"
+        visit.entry_time = datetime.utcnow()
+        visit.scanned_by = current_user.id
+    elif visit.status == "checked_in":
+        visit.status = "checked_out"
+        visit.exit_time = datetime.utcnow()
+    
+    db.commit()
+    db.refresh(visit)
+    return visit
+
+@router.get("/", response_model=List[VisitResponse])
+def get_visits(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    query = db.query(Visit)
+    
+    if current_user.role == "resident":
+        query = query.filter(Visit.unit_id == current_user.unit_id)
+    elif current_user.role in ["admin", "guard"]:
+        query = query.filter(Visit.condominium_id == current_user.condominium_id)
+    
+    visits = query.order_by(Visit.created_at.desc()).all()
+    return visits
+
