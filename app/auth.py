@@ -57,12 +57,21 @@ def get_current_user(
         raise credentials_exception
     
     # Convertir el string a UUID si es necesario
+    # Para SQLite, los IDs son strings, para PostgreSQL son UUIDs
+    import os
+    DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./test_condosmart.db")
+    USE_SQLITE = "sqlite" in DATABASE_URL
+    
     try:
-        user_uuid = UUID(user_id) if isinstance(user_id, str) else user_id
+        if USE_SQLITE:
+            # En SQLite, los IDs son strings, usar directamente
+            user = db.query(User).filter(User.id == user_id).first()
+        else:
+            # En PostgreSQL, convertir a UUID
+            user_uuid = UUID(user_id) if isinstance(user_id, str) else user_id
+            user = db.query(User).filter(User.id == user_uuid).first()
     except (ValueError, TypeError):
         raise credentials_exception
-    
-    user = db.query(User).filter(User.id == user_uuid).first()
     if user is None:
         raise credentials_exception
     

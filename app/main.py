@@ -257,15 +257,24 @@ async def init_production_data(db: Session = Depends(get_db)):
             condominium_id = uuid.uuid4()
             resident_id = uuid.uuid4()
         
-        # Crear Super Admin
-        super_admin = User(
-            id=super_admin_id,
-            email="admin@condosmart.com",
-            password_hash=get_password_hash("admin123"),
-            full_name="Super Administrador",
-            role="super_admin",
-            is_active=True
-        )
+        # Crear Super Admin (verificar si ya existe y actualizar rol)
+        existing_super = db.query(User).filter(User.email == "admin@condosmart.com").first()
+        if existing_super:
+            existing_super.role = "super_admin"
+            existing_super.password_hash = get_password_hash("admin123")
+            db.commit()
+            print("✅ Super Admin actualizado")
+        else:
+            super_admin = User(
+                id=super_admin_id,
+                email="admin@condosmart.com",
+                password_hash=get_password_hash("admin123"),
+                full_name="Super Administrador",
+                role="super_admin",
+                is_active=True
+            )
+            db.add(super_admin)
+            db.flush()
         db.add(super_admin)
         db.flush()
         
