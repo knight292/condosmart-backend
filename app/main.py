@@ -217,6 +217,113 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(None)):
 async def root():
     return {"message": "CondoSmart API"}
 
+@app.post("/api/init-production")
+async def init_production_data(db: Session = Depends(get_db)):
+    """
+    Endpoint para inicializar datos de producción.
+    Solo se puede ejecutar una vez (verifica si ya existen usuarios).
+    """
+    from app.models import User, Condominium, Owner
+    from app.auth import get_password_hash
+    import uuid
+    
+    try:
+        # Verificar si ya existe un super admin
+        existing_super_admin = db.query(User).filter(User.role == "super_admin").first()
+        if existing_super_admin:
+            return {
+                "message": "Los datos ya están inicializados",
+                "users_exist": True,
+                "super_admin": existing_super_admin.email
+            }
+        
+        # Crear Super Admin
+        super_admin = User(
+            id=uuid.uuid4(),
+            email="admin@condosmart.com",
+            password_hash=get_password_hash("admin123"),
+            full_name="Super Administrador",
+            role="super_admin",
+            is_active=True
+        )
+        db.add(super_admin)
+        db.flush()
+        
+        # Crear Admin de prueba
+        admin = User(
+            id=uuid.uuid4(),
+            email="admin@test.com",
+            password_hash=get_password_hash("test123"),
+            full_name="Administrador de Prueba",
+            role="admin",
+            is_active=True
+        )
+        db.add(admin)
+        db.flush()
+        
+        # Crear Owner y Condominio de prueba
+        owner = Owner(
+            id=uuid.uuid4(),
+            name="Empresa de Prueba",
+            email="owner@test.com",
+            phone="1234567890",
+            is_active="active"
+        )
+        db.add(owner)
+        db.flush()
+        
+        condominium = Condominium(
+            id=uuid.uuid4(),
+            owner_id=owner.id,
+            name="Condominio de Prueba",
+            address="Dirección de Prueba",
+            subscription_plan="premium",
+            subscription_status="active"
+        )
+        db.add(condominium)
+        db.flush()
+        
+        # Asignar condominio al admin
+        admin.condominium_id = condominium.id
+        db.flush()
+        
+        # Crear Residente de prueba
+        resident = User(
+            id=uuid.uuid4(),
+            email="juan@test.com",
+            password_hash=get_password_hash("test123"),
+            full_name="Juan Pérez",
+            role="resident",
+            condominium_id=condominium.id,
+            is_active=True
+        )
+        db.add(resident)
+        db.commit()
+        
+        return {
+            "message": "Datos de producción inicializados correctamente",
+            "users_created": {
+                "super_admin": {
+                    "email": "admin@condosmart.com",
+                    "password": "admin123"
+                },
+                "admin": {
+                    "email": "admin@test.com",
+                    "password": "test123"
+                },
+                "resident": {
+                    "email": "juan@test.com",
+                    "password": "test123"
+                }
+            }
+        }
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error inicializando datos: {str(e)}"
+        )
+
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
 
