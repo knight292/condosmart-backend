@@ -1,35 +1,26 @@
 from sqlalchemy import Column, String, Boolean, ForeignKey, DateTime
-import os
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./test_condosmart.db")
-USE_SQLITE = "sqlite" in DATABASE_URL
-if USE_SQLITE:
-    from sqlalchemy import String
-    UUID = String(36)
-else:
-    UUID = PostgresUUID(as_uuid=True)
+from app.models.uuid_helper import UUID
 
-from app.db import USE_SQLITE
-from sqlalchemy import String
-UUID = String(36) if USE_SQLITE else PostgresUUID(as_uuid=True)
 from sqlalchemy.orm import relationship
 import uuid
 from datetime import datetime
 
 from app.db import Base
+from app.models.uuid_helper import UUID
 
 class User(Base):
     __tablename__ = "users"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(UUID, primary_key=True, default=uuid.uuid4)
     email = Column(String(255), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=False)
     full_name = Column(String(255), nullable=False)
     phone = Column(String(20))
     fcm_token = Column(String(500), nullable=True)  # Token para Firebase Cloud Messaging
     role = Column(String(50), nullable=False)  # owner, super_admin, admin, resident, guard
-    owner_id = Column(UUID(as_uuid=True), ForeignKey("owners.id"), nullable=True)  # Para usuarios owner
-    condominium_id = Column(UUID(as_uuid=True), ForeignKey("condominiums.id"), nullable=True)
-    unit_id = Column(UUID(as_uuid=True), ForeignKey("units.id"), nullable=True)
+    owner_id = Column(UUID, ForeignKey("owners.id"), nullable=True)  # Para usuarios owner
+    condominium_id = Column(UUID, ForeignKey("condominiums.id"), nullable=True)
+    unit_id = Column(UUID, ForeignKey("units.id"), nullable=True)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -56,4 +47,3 @@ class User(Base):
     shift_swaps_requested = relationship("ShiftSwap", foreign_keys="ShiftSwap.requested_by", back_populates="requester")
     shift_swaps_responded = relationship("ShiftSwap", foreign_keys="ShiftSwap.responded_by", back_populates="responder")
     packages_received = relationship("Package", foreign_keys="Package.resident_id", back_populates="resident")
-

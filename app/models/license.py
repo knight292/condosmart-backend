@@ -1,16 +1,6 @@
 from sqlalchemy import Column, String, DateTime, ForeignKey, Integer, Boolean
-import os
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./test_condosmart.db")
-USE_SQLITE = "sqlite" in DATABASE_URL
-if USE_SQLITE:
-    from sqlalchemy import String
-    UUID = String(36)
-else:
-    UUID = PostgresUUID(as_uuid=True)
+from app.models.uuid_helper import UUID
 
-from app.db import USE_SQLITE
-from sqlalchemy import String
-UUID = String(36) if USE_SQLITE else PostgresUUID(as_uuid=True)
 from sqlalchemy.orm import relationship
 import uuid
 from datetime import datetime
@@ -20,7 +10,7 @@ from app.db import Base
 class License(Base):
     __tablename__ = "licenses"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(UUID, primary_key=True, default=uuid.uuid4)
     code = Column(String(50), unique=True, nullable=False, index=True)  # Código único de activación
     package_type = Column(String(50), nullable=False)  # "basic" ($40k), "intermediate" ($60k), "premium" ($80k)
     max_units = Column(Integer, nullable=True)  # Límite de unidades según paquete (null = ilimitado)
@@ -29,7 +19,7 @@ class License(Base):
     # Estado de la licencia
     activated = Column(Boolean, default=False)  # Si ya fue activada
     activated_at = Column(DateTime, nullable=True)  # Fecha de activación
-    activated_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)  # Usuario que activó
+    activated_by = Column(UUID, ForeignKey("users.id"), nullable=True)  # Usuario que activó
     
     # Información de compra
     purchase_date = Column(DateTime, default=datetime.utcnow)  # Fecha de compra

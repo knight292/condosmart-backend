@@ -1,16 +1,6 @@
 from sqlalchemy import Column, String, Numeric, Date, DateTime, ForeignKey
-import os
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./test_condosmart.db")
-USE_SQLITE = "sqlite" in DATABASE_URL
-if USE_SQLITE:
-    from sqlalchemy import String
-    UUID = String(36)
-else:
-    UUID = PostgresUUID(as_uuid=True)
+from app.models.uuid_helper import UUID
 
-from app.db import USE_SQLITE
-from sqlalchemy import String
-UUID = String(36) if USE_SQLITE else PostgresUUID(as_uuid=True)
 from sqlalchemy.orm import relationship
 import uuid
 from datetime import datetime
@@ -20,9 +10,9 @@ from app.db import Base
 class Payment(Base):
     __tablename__ = "payments"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    condominium_id = Column(UUID(as_uuid=True), ForeignKey("condominiums.id"), nullable=False)
+    id = Column(UUID, primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID, ForeignKey("users.id"), nullable=False)
+    condominium_id = Column(UUID, ForeignKey("condominiums.id"), nullable=False)
     amount = Column(Numeric(10, 2), nullable=False)
     currency = Column(String(3), default="MXN")
     status = Column(String(50), default="pending")

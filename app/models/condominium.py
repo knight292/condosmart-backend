@@ -1,16 +1,6 @@
 from sqlalchemy import Column, String, DateTime, ForeignKey
-import os
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./test_condosmart.db")
-USE_SQLITE = "sqlite" in DATABASE_URL
-if USE_SQLITE:
-    from sqlalchemy import String
-    UUID = String(36)
-else:
-    UUID = PostgresUUID(as_uuid=True)
+from app.models.uuid_helper import UUID
 
-from app.db import USE_SQLITE
-from sqlalchemy import String
-UUID = String(36) if USE_SQLITE else PostgresUUID(as_uuid=True)
 from sqlalchemy.orm import relationship
 import uuid
 from datetime import datetime
@@ -20,9 +10,9 @@ from app.db import Base
 class Condominium(Base):
     __tablename__ = "condominiums"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    owner_id = Column(UUID(as_uuid=True), ForeignKey("owners.id"), nullable=True)  # Dueño del condominio
-    license_id = Column(UUID(as_uuid=True), ForeignKey("licenses.id"), nullable=True)  # Licencia asociada
+    id = Column(UUID, primary_key=True, default=uuid.uuid4)
+    owner_id = Column(UUID, ForeignKey("owners.id"), nullable=True)  # Dueño del condominio
+    license_id = Column(UUID, ForeignKey("licenses.id"), nullable=True)  # Licencia asociada
     name = Column(String(255), nullable=False)
     address = Column(String(500))
     subscription_plan = Column(String(50))

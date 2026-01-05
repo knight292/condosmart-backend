@@ -1,16 +1,6 @@
 from sqlalchemy import Column, String, Text, ForeignKey, DateTime
-import os
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./test_condosmart.db")
-USE_SQLITE = "sqlite" in DATABASE_URL
-if USE_SQLITE:
-    from sqlalchemy import String
-    UUID = String(36)
-else:
-    UUID = PostgresUUID(as_uuid=True)
+from app.models.uuid_helper import UUID
 
-from app.db import USE_SQLITE
-from sqlalchemy import String
-UUID = String(36) if USE_SQLITE else PostgresUUID(as_uuid=True)
 from sqlalchemy.orm import relationship
 import uuid
 from datetime import datetime
@@ -20,14 +10,14 @@ from app.db import Base
 class Ticket(Base):
     __tablename__ = "maintenance_tickets"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    condominium_id = Column(UUID(as_uuid=True), ForeignKey("condominiums.id"), nullable=False)
-    reported_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    id = Column(UUID, primary_key=True, default=uuid.uuid4)
+    condominium_id = Column(UUID, ForeignKey("condominiums.id"), nullable=False)
+    reported_by = Column(UUID, ForeignKey("users.id"), nullable=False)
     category = Column(String(50))
     title = Column(String(255), nullable=False)
     description = Column(Text)
     status = Column(String(50), default="new")
-    assigned_to = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    assigned_to = Column(UUID, ForeignKey("users.id"), nullable=True)
     priority = Column(String(50), default="medium")
     resolved_at = Column(DateTime)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -41,8 +31,8 @@ class Ticket(Base):
 class TicketAttachment(Base):
     __tablename__ = "ticket_attachments"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    ticket_id = Column(UUID(as_uuid=True), ForeignKey("maintenance_tickets.id"), nullable=False)
+    id = Column(UUID, primary_key=True, default=uuid.uuid4)
+    ticket_id = Column(UUID, ForeignKey("maintenance_tickets.id"), nullable=False)
     file_url = Column(Text, nullable=False)
     file_type = Column(String(50))
     created_at = Column(DateTime, default=datetime.utcnow)
