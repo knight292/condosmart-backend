@@ -237,9 +237,29 @@ async def init_production_data(db: Session = Depends(get_db)):
                 "super_admin": existing_super_admin.email
             }
         
+        # Obtener el tipo UUID correcto según la base de datos
+        from app.models.uuid_helper import UUID
+        import os
+        DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./test_condosmart.db")
+        USE_SQLITE = "sqlite" in DATABASE_URL
+        
+        # Crear IDs
+        if USE_SQLITE:
+            super_admin_id = str(uuid.uuid4())
+            admin_id = str(uuid.uuid4())
+            owner_id = str(uuid.uuid4())
+            condominium_id = str(uuid.uuid4())
+            resident_id = str(uuid.uuid4())
+        else:
+            super_admin_id = uuid.uuid4()
+            admin_id = uuid.uuid4()
+            owner_id = uuid.uuid4()
+            condominium_id = uuid.uuid4()
+            resident_id = uuid.uuid4()
+        
         # Crear Super Admin
         super_admin = User(
-            id=uuid.uuid4(),
+            id=super_admin_id,
             email="admin@condosmart.com",
             password_hash=get_password_hash("admin123"),
             full_name="Super Administrador",
@@ -249,21 +269,9 @@ async def init_production_data(db: Session = Depends(get_db)):
         db.add(super_admin)
         db.flush()
         
-        # Crear Admin de prueba
-        admin = User(
-            id=uuid.uuid4(),
-            email="admin@test.com",
-            password_hash=get_password_hash("test123"),
-            full_name="Administrador de Prueba",
-            role="admin",
-            is_active=True
-        )
-        db.add(admin)
-        db.flush()
-        
         # Crear Owner y Condominio de prueba
         owner = Owner(
-            id=uuid.uuid4(),
+            id=owner_id,
             name="Empresa de Prueba",
             email="owner@test.com",
             phone="1234567890",
@@ -273,7 +281,7 @@ async def init_production_data(db: Session = Depends(get_db)):
         db.flush()
         
         condominium = Condominium(
-            id=uuid.uuid4(),
+            id=condominium_id,
             owner_id=owner.id,
             name="Condominio de Prueba",
             address="Dirección de Prueba",
@@ -283,13 +291,22 @@ async def init_production_data(db: Session = Depends(get_db)):
         db.add(condominium)
         db.flush()
         
-        # Asignar condominio al admin
-        admin.condominium_id = condominium.id
+        # Crear Admin de prueba
+        admin = User(
+            id=admin_id,
+            email="admin@test.com",
+            password_hash=get_password_hash("test123"),
+            full_name="Administrador de Prueba",
+            role="admin",
+            condominium_id=condominium.id,
+            is_active=True
+        )
+        db.add(admin)
         db.flush()
         
         # Crear Residente de prueba
         resident = User(
-            id=uuid.uuid4(),
+            id=resident_id,
             email="juan@test.com",
             password_hash=get_password_hash("test123"),
             full_name="Juan Pérez",
