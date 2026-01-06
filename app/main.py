@@ -41,8 +41,10 @@ def initialize_test_users():
     try:
         # Verificar si ya existen usuarios
         existing_count = db.query(User).count()
+        logger.info(f"🔍 Usuarios existentes en la base de datos: {existing_count}")
+        
         if existing_count > 0:
-            logger.info(f"✅ Ya existen {existing_count} usuarios en la base de datos.")
+            logger.info(f"✅ Ya existen {existing_count} usuarios en la base de datos. NO se crearán usuarios de prueba.")
             # Aún así, verificar y crear licencia si el condominio no la tiene
             condominium = db.query(Condominium).first()
             if condominium and not condominium.license_id:
