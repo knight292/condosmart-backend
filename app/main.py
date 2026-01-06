@@ -229,6 +229,107 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(None)):
 async def root():
     return {"message": "CondoSmart API"}
 
+@app.post("/api/recreate-users")
+def recreate_users(db: Session = Depends(get_db)):
+    """Endpoint temporal para recrear usuarios de prueba"""
+    from app.auth import get_password_hash
+    from app.models import Condominium, Unit
+    
+    try:
+        print("🔄 Recreando usuarios de prueba...")
+        
+        # 1. Crear o obtener condominio
+        condominium = db.query(Condominium).first()
+        if not condominium:
+            condominium = Condominium(
+                name="Condominio Prueba",
+                address="Calle Prueba 123",
+                subscription_plan="small",
+                subscription_status="active"
+            )
+            db.add(condominium)
+            db.commit()
+            db.refresh(condominium)
+        
+        # 2. Crear o obtener unidad
+        unit = db.query(Unit).first()
+        if not unit:
+            unit = Unit(
+                condominium_id=condominium.id,
+                number="101",
+                tower="Torre A",
+                floor=1,
+                type="apartment"
+            )
+            db.add(unit)
+            db.commit()
+            db.refresh(unit)
+        
+        # 3. Crear usuarios
+        usuarios = [
+            {
+                "email": "admin@test.com",
+                "password": "test123",
+                "full_name": "Administrador Test",
+                "role": "admin",
+                "condominium_id": condominium.id,
+            },
+            {
+                "email": "admin@condosmart.com",
+                "password": "admin123",
+                "full_name": "Super Administrador",
+                "role": "super_admin",
+                "condominium_id": None,
+            },
+            {
+                "email": "juan@test.com",
+                "password": "test123",
+                "full_name": "Juan Pérez",
+                "role": "resident",
+                "condominium_id": condominium.id,
+                "unit_id": unit.id,
+            },
+        ]
+        
+        created_users = []
+        for user_data in usuarios:
+            existing_user = db.query(User).filter(User.email == user_data["email"]).first()
+            
+            if existing_user:
+                existing_user.password_hash = get_password_hash(user_data["password"])
+                existing_user.full_name = user_data["full_name"]
+                existing_user.role = user_data["role"]
+                existing_user.condominium_id = user_data.get("condominium_id")
+                existing_user.unit_id = user_data.get("unit_id")
+                existing_user.is_active = True
+                db.commit()
+                created_users.append({"email": user_data["email"], "status": "updated"})
+            else:
+                new_user = User(
+                    email=user_data["email"],
+                    password_hash=get_password_hash(user_data["password"]),
+                    full_name=user_data["full_name"],
+                    role=user_data["role"],
+                    condominium_id=user_data.get("condominium_id"),
+                    unit_id=user_data.get("unit_id"),
+                    is_active=True
+                )
+                db.add(new_user)
+                db.commit()
+                db.refresh(new_user)
+                created_users.append({"email": user_data["email"], "status": "created", "id": str(new_user.id)})
+        
+        return {
+            "message": "Usuarios recreados exitosamente",
+            "users": created_users
+        }
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error recreando usuarios: {str(e)}"
+        )
+
 @app.post("/api/init-production")
 async def init_production_data(db: Session = Depends(get_db)):
     """
