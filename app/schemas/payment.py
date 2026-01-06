@@ -5,10 +5,12 @@ from uuid import UUID
 from decimal import Decimal
 
 class PaymentCreate(BaseModel):
+    user_id: Optional[UUID] = None  # ID del usuario para quien se crea el pago (requerido para admins)
     amount: Decimal
     currency: str = "MXN"
     payment_method: Optional[str] = None
     due_date: date
+    description: Optional[str] = None  # Descripción del pago (ej: "Cuota mensual enero 2024")
 
 class PaymentProcess(BaseModel):
     payment_method_id: str  # ID del método de pago seleccionado

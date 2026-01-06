@@ -3,12 +3,15 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import date, datetime
 from uuid import UUID
+import logging
 
 from app.db import get_db
 from app.models import Payment, User, PaymentMethod
 from app.models.uuid_helper import USE_SQLITE
 from app.schemas.payment import PaymentCreate, PaymentResponse, PaymentProcess
 from app.auth import get_current_user
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
