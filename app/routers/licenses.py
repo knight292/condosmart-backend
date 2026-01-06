@@ -146,7 +146,8 @@ def activate_license(
 ):
     """
     Activa una licencia asociándola a un condominio.
-    El usuario debe ser admin o super_admin.
+    - Si el usuario es admin: activa la licencia para SU condominio
+    - Si el usuario es super_admin: puede activar para cualquier condominio
     """
     license = db.query(License).filter(License.code == activation_data.code.upper()).first()
     
@@ -167,6 +168,20 @@ def activate_license(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Esta licencia ha expirado"
+        )
+    
+    # Verificar permisos: solo admin (de su condominio) o super_admin pueden activar
+    if current_user.role not in ["admin", "super_admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo administradores pueden activar licencias"
+        )
+    
+    # Si es admin (no super_admin), debe tener un condominio
+    if current_user.role == "admin" and not current_user.condominium_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El administrador debe pertenecer a un condominio para activar la licencia"
         )
     
     # Convertir IDs a string si es SQLite

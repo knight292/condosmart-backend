@@ -90,12 +90,39 @@ def create_user(
             detail="Condominium ID is required"
         )
     
+    # Convertir condominium_id a string si es SQLite para la query
+    if USE_SQLITE:
+        condo_search_id = str(condominium_id) if condominium_id else None
+    else:
+        condo_search_id = condominium_id
+    
     # Verificar que el condominio existe
-    condominium = db.query(Condominium).filter(Condominium.id == condominium_id).first()
+    condominium = db.query(Condominium).filter(Condominium.id == condo_search_id).first()
     if not condominium:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Condominium not found"
+        )
+    
+    # Verificar que el condominio tiene una licencia activa
+    if not condominium.license_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El condominio no tiene una licencia activa. Debe activar una licencia antes de crear usuarios."
+        )
+    
+    # Verificar que la licencia está activada
+    from app.models import License
+    if USE_SQLITE:
+        license_search_id = str(condominium.license_id) if condominium.license_id else None
+    else:
+        license_search_id = condominium.license_id
+    
+    license = db.query(License).filter(License.id == license_search_id).first() if license_search_id else None
+    if not license or not license.activated:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La licencia del condominio no está activa. Debe activar la licencia antes de crear usuarios."
         )
     
     # Si es owner, verificar que el condominio le pertenece
@@ -117,14 +144,22 @@ def create_user(
                 detail="Unit not found or does not belong to this condominium"
             )
     
+    # Convertir condominium_id a string si es SQLite para asignación
+    if USE_SQLITE:
+        condo_id_value = str(condominium_id) if condominium_id else None
+        unit_id_value = str(user_data.unit_id) if user_data.unit_id else None
+    else:
+        condo_id_value = condominium_id
+        unit_id_value = user_data.unit_id
+    
     new_user = User(
         email=user_data.email,
         password_hash=get_password_hash(user_data.password),
         full_name=user_data.full_name,
         phone=user_data.phone,
         role=user_data.role,
-        condominium_id=condominium_id,
-        unit_id=user_data.unit_id,
+        condominium_id=condo_id_value,
+        unit_id=unit_id_value,
         is_active=True
     )
     db.add(new_user)
