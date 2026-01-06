@@ -75,6 +75,7 @@ async def upload_attachment(
     
     return {"id": str(attachment.id), "file_url": file_url}
 
+@router.get("", response_model=List[TicketResponse])
 @router.get("/", response_model=List[TicketResponse])
 def get_tickets(
     status_filter: Optional[str] = None,

@@ -128,6 +128,7 @@ def scan_visit(
     db.refresh(visit)
     return visit
 
+@router.get("", response_model=List[VisitResponse])
 @router.get("/", response_model=List[VisitResponse])
 def get_visits(
     current_user: User = Depends(get_current_user),

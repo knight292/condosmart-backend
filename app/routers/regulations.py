@@ -80,6 +80,7 @@ def create_regulation(
     }
     return regulation_dict
 
+@router.get("", response_model=List[RegulationResponse])
 @router.get("/", response_model=List[RegulationResponse])
 def get_regulations(
     category: Optional[str] = None,

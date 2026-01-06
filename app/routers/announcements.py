@@ -48,6 +48,7 @@ def create_announcement(
     db.refresh(new_announcement)
     return new_announcement
 
+@router.get("", response_model=List[AnnouncementResponse])
 @router.get("/", response_model=List[AnnouncementResponse])
 def get_announcements(
     current_user: User = Depends(get_current_user),

@@ -89,6 +89,7 @@ def create_package(
         updated_at=new_package.updated_at
     )
 
+@router.get("", response_model=List[PackageResponse])
 @router.get("/", response_model=List[PackageResponse])
 def get_packages(
     current_user: User = Depends(get_current_user),

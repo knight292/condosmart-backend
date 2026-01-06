@@ -66,6 +66,7 @@ def create_reservation(
     db.refresh(new_reservation)
     return new_reservation
 
+@router.get("", response_model=List[ReservationResponse])
 @router.get("/", response_model=List[ReservationResponse])
 def get_reservations(
     facility_type: str = None,

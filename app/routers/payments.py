@@ -67,6 +67,7 @@ def create_payment(
     }
     return payment_dict
 
+@router.get("", response_model=List[PaymentResponse])
 @router.get("/", response_model=List[PaymentResponse])
 def get_payments(
     status_filter: Optional[str] = Query(None, alias="status"),
