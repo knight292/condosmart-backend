@@ -5,11 +5,13 @@ from uuid import UUID
 
 from app.db import get_db
 from app.models import PaymentMethod, User, Condominium
+from app.models.uuid_helper import USE_SQLITE
 from app.schemas.payment_method import PaymentMethodCreate, PaymentMethodUpdate, PaymentMethodResponse
 from app.auth import get_current_user
 
 router = APIRouter(prefix="/payment-methods", tags=["payment-methods"])
 
+@router.get("", response_model=List[PaymentMethodResponse])
 @router.get("/", response_model=List[PaymentMethodResponse])
 def get_payment_methods(
     current_user: User = Depends(get_current_user),
@@ -22,9 +24,15 @@ def get_payment_methods(
             detail="User must belong to a condominium"
         )
     
+    # Convertir condominium_id a string si es SQLite
+    if USE_SQLITE:
+        condo_id = str(current_user.condominium_id) if current_user.condominium_id else None
+    else:
+        condo_id = current_user.condominium_id
+    
     # Solo mostrar métodos activos para residentes, todos para administradores
     query = db.query(PaymentMethod).filter(
-        PaymentMethod.condominium_id == current_user.condominium_id
+        PaymentMethod.condominium_id == condo_id
     )
     
     if current_user.role == "resident":
@@ -52,9 +60,15 @@ def create_payment_method(
             detail="User must belong to a condominium"
         )
     
+    # Convertir condominium_id a string si es SQLite
+    if USE_SQLITE:
+        condo_id = str(current_user.condominium_id) if current_user.condominium_id else None
+    else:
+        condo_id = current_user.condominium_id
+    
     # Verificar que el condominio existe
     condominium = db.query(Condominium).filter(
-        Condominium.id == current_user.condominium_id
+        Condominium.id == condo_id
     ).first()
     
     if not condominium:
@@ -64,7 +78,7 @@ def create_payment_method(
         )
     
     new_method = PaymentMethod(
-        condominium_id=current_user.condominium_id,
+        condominium_id=condo_id,
         method_type=method_data.method_type,
         name=method_data.name,
         account_number=method_data.account_number,
@@ -104,9 +118,17 @@ def update_payment_method(
             detail="User must belong to a condominium"
         )
     
+    # Convertir IDs a string si es SQLite
+    if USE_SQLITE:
+        condo_id = str(current_user.condominium_id) if current_user.condominium_id else None
+        method_search_id = str(method_id) if method_id else None
+    else:
+        condo_id = current_user.condominium_id
+        method_search_id = method_id
+    
     method = db.query(PaymentMethod).filter(
-        PaymentMethod.id == method_id,
-        PaymentMethod.condominium_id == current_user.condominium_id
+        PaymentMethod.id == method_search_id,
+        PaymentMethod.condominium_id == condo_id
     ).first()
     
     if not method:
@@ -144,9 +166,17 @@ def delete_payment_method(
             detail="User must belong to a condominium"
         )
     
+    # Convertir IDs a string si es SQLite
+    if USE_SQLITE:
+        condo_id = str(current_user.condominium_id) if current_user.condominium_id else None
+        method_search_id = str(method_id) if method_id else None
+    else:
+        condo_id = current_user.condominium_id
+        method_search_id = method_id
+    
     method = db.query(PaymentMethod).filter(
-        PaymentMethod.id == method_id,
-        PaymentMethod.condominium_id == current_user.condominium_id
+        PaymentMethod.id == method_search_id,
+        PaymentMethod.condominium_id == condo_id
     ).first()
     
     if not method:
