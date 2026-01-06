@@ -15,17 +15,72 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+@router.post("", response_model=PaymentResponse, status_code=status.HTTP_201_CREATED)
 @router.post("/", response_model=PaymentResponse, status_code=status.HTTP_201_CREATED)
 def create_payment(
     payment_data: PaymentCreate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    # Los administradores no pueden crear pagos para sí mismos
-    if current_user.role in ["admin", "super_admin"]:
+    """
+    Crear un pago.
+    - Si es admin/super_admin: puede crear pagos para cualquier residente de su condominio (debe especificar user_id)
+    - Si es resident: solo puede crear pagos para sí mismo
+    """
+    # Determinar para qué usuario se crea el pago
+    target_user_id = None
+    target_user = None
+    
+    if current_user.role in ["admin", "super_admin", "owner"]:
+        # Administradores pueden crear pagos para residentes específicos
+        if payment_data.user_id:
+            # Si se especifica un user_id, crear para ese usuario
+            if USE_SQLITE:
+                target_user_id = str(payment_data.user_id) if payment_data.user_id else None
+            else:
+                target_user_id = payment_data.user_id
+            
+            # Verificar que el usuario existe
+            target_user = db.query(User).filter(User.id == target_user_id).first() if target_user_id else None
+            if not target_user:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Usuario no encontrado"
+                )
+            
+            # Verificar que pertenece al mismo condominio
+            if USE_SQLITE:
+                target_condo_id = str(target_user.condominium_id) if target_user.condominium_id else None
+                user_condo_id = str(current_user.condominium_id) if current_user.condominium_id else None
+            else:
+                target_condo_id = target_user.condominium_id
+                user_condo_id = current_user.condominium_id
+            
+            if target_condo_id != user_condo_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Solo puedes crear pagos para usuarios de tu condominio"
+                )
+            
+            # Verificar que el usuario objetivo es residente o guardia
+            if target_user.role not in ["resident", "guard"]:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Solo puedes crear pagos para residentes o guardias"
+                )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Debes especificar el user_id del residente para crear el pago"
+            )
+    elif current_user.role == "resident":
+        # Residentes solo pueden crear pagos para sí mismos
+        target_user_id = str(current_user.id) if (USE_SQLITE and current_user.id) else current_user.id
+        target_user = current_user
+    else:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Administrators cannot create payments for themselves"
+            detail="No tienes permisos para crear pagos"
         )
     
     if not current_user.condominium_id:
@@ -35,11 +90,10 @@ def create_payment(
         )
     
     # Convertir IDs a string si es SQLite
-    user_id = str(current_user.id) if (USE_SQLITE and current_user.id) else current_user.id
     condo_id = str(current_user.condominium_id) if (USE_SQLITE and current_user.condominium_id) else current_user.condominium_id
     
     new_payment = Payment(
-        user_id=user_id,
+        user_id=target_user_id,
         condominium_id=condo_id,
         amount=payment_data.amount,
         currency=payment_data.currency,
@@ -65,9 +119,23 @@ def create_payment(
         "due_date": new_payment.due_date,
         "paid_at": new_payment.paid_at,
         "created_at": new_payment.created_at,
-        "user_name": current_user.full_name,
-        "user_email": current_user.email,
+        "user_name": target_user.full_name if target_user else None,
+        "user_email": target_user.email if target_user else None,
     }
+    
+    # Agregar notificación para el usuario
+    try:
+        from app.services.notification_service import NotificationService
+        notification_service = NotificationService()
+        notification_service.add_notification(
+            user_id=str(target_user.id) if (USE_SQLITE and target_user.id) else target_user.id,
+            title="Nuevo pago pendiente",
+            message=f"Tienes un pago pendiente de ${payment_data.amount} {payment_data.currency} con vencimiento el {payment_data.due_date.strftime('%d/%m/%Y')}",
+            type="payment"
+        )
+    except Exception as e:
+        logger.warning(f"No se pudo crear notificación: {str(e)}")
+    
     return payment_dict
 
 @router.get("", response_model=List[PaymentResponse])
