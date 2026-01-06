@@ -435,6 +435,7 @@ def delete_recurring_payment(
     db.commit()
 
 @router.post("/{recurring_id}/generate", status_code=status.HTTP_200_OK)
+@router.post("/{recurring_id}/generate/", status_code=status.HTTP_200_OK)
 def generate_payments_from_recurring(
     recurring_id: str,
     current_user: User = Depends(get_current_user),
