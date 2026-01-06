@@ -48,9 +48,12 @@ async def upload_attachment(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    # Convertir IDs a string si es SQLite
+    user_id = str(current_user.id) if USE_SQLITE else current_user.id
+    
     ticket = db.query(Ticket).filter(
         Ticket.id == ticket_id,
-        Ticket.reported_by == current_user.id
+        Ticket.reported_by == user_id
     ).first()
     
     if not ticket:
@@ -80,15 +83,24 @@ def get_tickets(
 ):
     query = db.query(Ticket)
     
+    # Convertir IDs a string si es SQLite para las comparaciones
+    if USE_SQLITE:
+        user_id = str(current_user.id) if current_user.id else None
+        condo_id = str(current_user.condominium_id) if current_user.condominium_id else None
+    else:
+        user_id = current_user.id
+        condo_id = current_user.condominium_id
+    
     if current_user.role == "resident":
-        query = query.filter(Ticket.reported_by == current_user.id)
+        if user_id:
+            query = query.filter(Ticket.reported_by == user_id)
     elif current_user.role in ["admin", "super_admin"]:
-        if current_user.condominium_id:
-            query = query.filter(Ticket.condominium_id == current_user.condominium_id)
+        if condo_id:
+            query = query.filter(Ticket.condominium_id == condo_id)
     elif current_user.role == "owner":
         # Owners pueden ver tickets del condominio seleccionado (asignado temporalmente en auth.py)
-        if current_user.condominium_id:
-            query = query.filter(Ticket.condominium_id == current_user.condominium_id)
+        if condo_id:
+            query = query.filter(Ticket.condominium_id == condo_id)
     
     if status_filter:
         query = query.filter(Ticket.status == status_filter)
@@ -110,7 +122,15 @@ def get_ticket(
             detail="Ticket not found"
         )
     
-    if current_user.role == "resident" and ticket.reported_by != current_user.id:
+    # Convertir IDs a string si es SQLite para la comparación
+    if USE_SQLITE:
+        user_id = str(current_user.id) if current_user.id else None
+        ticket_reported_by = str(ticket.reported_by) if ticket.reported_by else None
+    else:
+        user_id = current_user.id
+        ticket_reported_by = ticket.reported_by
+    
+    if current_user.role == "resident" and ticket_reported_by != user_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized"
