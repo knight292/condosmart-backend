@@ -1,17 +1,22 @@
 from sqlalchemy import Column, String, Boolean, ForeignKey, DateTime
-from app.models.uuid_helper import UUID
+from app.models.uuid_helper import UUID, USE_SQLITE
 
 from sqlalchemy.orm import relationship
 import uuid
 from datetime import datetime
 
 from app.db import Base
-from app.models.uuid_helper import UUID
+
+def generate_uuid():
+    """Genera UUID como string para SQLite o como objeto UUID para PostgreSQL"""
+    if USE_SQLITE:
+        return str(uuid.uuid4())
+    return uuid.uuid4()
 
 class User(Base):
     __tablename__ = "users"
 
-    id = Column(UUID, primary_key=True, default=uuid.uuid4)
+    id = Column(UUID, primary_key=True, default=generate_uuid)
     email = Column(String(255), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=False)
     full_name = Column(String(255), nullable=False)
