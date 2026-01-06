@@ -6,6 +6,7 @@ from uuid import UUID
 
 from app.db import get_db
 from app.models import Payment, User, PaymentMethod
+from app.models.uuid_helper import USE_SQLITE
 from app.schemas.payment import PaymentCreate, PaymentResponse, PaymentProcess
 from app.auth import get_current_user
 
@@ -30,9 +31,13 @@ def create_payment(
             detail="User must belong to a condominium"
         )
     
+    # Convertir IDs a string si es SQLite
+    user_id = str(current_user.id) if (USE_SQLITE and current_user.id) else current_user.id
+    condo_id = str(current_user.condominium_id) if (USE_SQLITE and current_user.condominium_id) else current_user.condominium_id
+    
     new_payment = Payment(
-        user_id=current_user.id,
-        condominium_id=current_user.condominium_id,
+        user_id=user_id,
+        condominium_id=condo_id,
         amount=payment_data.amount,
         currency=payment_data.currency,
         payment_method=payment_data.payment_method,
@@ -72,12 +77,21 @@ def get_payments(
     
     query = db.query(Payment)
     
+    # Convertir IDs a string si es SQLite
+    if USE_SQLITE:
+        user_id = str(current_user.id) if current_user.id else None
+        condo_id = str(current_user.condominium_id) if current_user.condominium_id else None
+    else:
+        user_id = current_user.id
+        condo_id = current_user.condominium_id
+    
     # Si es residente, solo sus pagos. Si es admin u owner, todos los del condominio
     if current_user.role == "resident":
-        query = query.filter(Payment.user_id == current_user.id)
+        if user_id:
+            query = query.filter(Payment.user_id == user_id)
     elif current_user.role in ["admin", "super_admin", "owner"]:
-        if current_user.condominium_id:
-            query = query.filter(Payment.condominium_id == current_user.condominium_id)
+        if condo_id:
+            query = query.filter(Payment.condominium_id == condo_id)
     
     if status_filter:
         query = query.filter(Payment.status == status_filter)
@@ -87,7 +101,13 @@ def get_payments(
     # Agregar información del usuario a cada pago
     result = []
     for payment in payments:
-        user = db.query(User).filter(User.id == payment.user_id).first()
+        # Convertir ID para la query si es SQLite
+        if USE_SQLITE:
+            payment_user_id = str(payment.user_id) if payment.user_id else None
+        else:
+            payment_user_id = payment.user_id
+        
+        user = db.query(User).filter(User.id == payment_user_id).first() if payment_user_id else None
         payment_dict = {
             "id": payment.id,
             "user_id": payment.user_id,
@@ -114,9 +134,12 @@ def get_payment(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    # Convertir ID a string si es SQLite
+    user_id = str(current_user.id) if (USE_SQLITE and current_user.id) else current_user.id
+    
     payment = db.query(Payment).filter(
         Payment.id == payment_id,
-        Payment.user_id == current_user.id
+        Payment.user_id == user_id
     ).first()
     
     if not payment:
@@ -146,9 +169,12 @@ def process_payment(
             detail="Invalid payment ID format"
         )
     
+    # Convertir ID a string si es SQLite
+    user_id = str(current_user.id) if (USE_SQLITE and current_user.id) else current_user.id
+    
     payment = db.query(Payment).filter(
         Payment.id == payment_uuid,
-        Payment.user_id == current_user.id
+        Payment.user_id == user_id
     ).first()
     
     if not payment:
@@ -172,9 +198,12 @@ def process_payment(
             detail="Invalid payment method ID format"
         )
     
+    # Convertir condominium_id a string si es SQLite
+    condo_id = str(current_user.condominium_id) if (USE_SQLITE and current_user.condominium_id) else current_user.condominium_id
+    
     payment_method = db.query(PaymentMethod).filter(
         PaymentMethod.id == method_uuid,
-        PaymentMethod.condominium_id == current_user.condominium_id,
+        PaymentMethod.condominium_id == condo_id,
         PaymentMethod.is_active == True
     ).first()
     
@@ -226,7 +255,13 @@ def process_payment(
     db.refresh(payment)
     
     # Obtener información del usuario para la respuesta
-    user = db.query(User).filter(User.id == payment.user_id).first()
+    # Convertir ID para la query si es SQLite
+    if USE_SQLITE:
+        payment_user_id = str(payment.user_id) if payment.user_id else None
+    else:
+        payment_user_id = payment.user_id
+    
+    user = db.query(User).filter(User.id == payment_user_id).first() if payment_user_id else None
     payment_dict = {
         "id": payment.id,
         "user_id": payment.user_id,
