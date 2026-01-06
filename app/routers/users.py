@@ -5,11 +5,13 @@ from uuid import UUID
 
 from app.db import get_db
 from app.models import User, Condominium, Unit
+from app.models.uuid_helper import USE_SQLITE
 from app.schemas.user import UserCreate, UserResponse, UserUpdate
 from app.auth import get_current_user, get_password_hash
 
 router = APIRouter()
 
+@router.get("", response_model=List[UserResponse])
 @router.get("/", response_model=List[UserResponse])
 def get_users(
     role_filter: Optional[str] = Query(None, alias="role"),
@@ -38,7 +40,13 @@ def get_users(
             detail="User must belong to a condominium"
         )
     
-    query = db.query(User).filter(User.condominium_id == condominium_id)
+    # Convertir condominium_id a string si es SQLite
+    if USE_SQLITE:
+        condo_id = str(condominium_id) if condominium_id else None
+    else:
+        condo_id = condominium_id
+    
+    query = db.query(User).filter(User.condominium_id == condo_id)
     
     if role_filter:
         query = query.filter(User.role == role_filter)

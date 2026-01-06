@@ -6,6 +6,7 @@ import uuid
 
 from app.db import get_db
 from app.models import Document, User
+from app.models.uuid_helper import USE_SQLITE
 from app.schemas.document import DocumentCreate, DocumentResponse
 from app.auth import get_current_user
 
@@ -81,6 +82,7 @@ async def create_document(
     }
     return document_dict
 
+@router.get("", response_model=List[DocumentResponse])
 @router.get("/", response_model=List[DocumentResponse])
 def get_documents(
     category: Optional[str] = None,
@@ -93,8 +95,14 @@ def get_documents(
             detail="User must belong to a condominium"
         )
     
+    # Convertir condominium_id a string si es SQLite
+    if USE_SQLITE:
+        condo_id = str(current_user.condominium_id) if current_user.condominium_id else None
+    else:
+        condo_id = current_user.condominium_id
+    
     query = db.query(Document).filter(
-        Document.condominium_id == current_user.condominium_id
+        Document.condominium_id == condo_id
     )
     
     # Si es residente, solo documentos públicos
@@ -108,7 +116,13 @@ def get_documents(
     
     result = []
     for doc in documents:
-        uploader = db.query(User).filter(User.id == doc.uploaded_by).first()
+        # Convertir ID para la query si es SQLite
+        if USE_SQLITE:
+            uploaded_by_id = str(doc.uploaded_by) if doc.uploaded_by else None
+        else:
+            uploaded_by_id = doc.uploaded_by
+        
+        uploader = db.query(User).filter(User.id == uploaded_by_id).first() if uploaded_by_id else None
         doc_dict = {
             "id": doc.id,
             "condominium_id": doc.condominium_id,
