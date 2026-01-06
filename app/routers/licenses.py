@@ -7,6 +7,7 @@ import string
 
 from app.db import get_db
 from app.models import License, Condominium, User
+from app.models.uuid_helper import USE_SQLITE
 from app.schemas.license import LicenseCreate, LicenseActivate, LicenseResponse, LicenseValidation
 from app.auth import get_current_user
 
@@ -168,12 +169,22 @@ def activate_license(
             detail="Esta licencia ha expirado"
         )
     
+    # Convertir IDs a string si es SQLite
+    if USE_SQLITE:
+        condo_id = str(current_user.condominium_id) if current_user.condominium_id else None
+        user_id = str(current_user.id) if current_user.id else None
+        license_id = str(license.id) if license.id else None
+    else:
+        condo_id = current_user.condominium_id
+        user_id = current_user.id
+        license_id = license.id
+    
     # Crear o actualizar condominio
-    if current_user.condominium_id:
+    if condo_id:
         # Si el usuario ya tiene un condominio, usar ese
-        condominium = db.query(Condominium).filter(Condominium.id == current_user.condominium_id).first()
+        condominium = db.query(Condominium).filter(Condominium.id == condo_id).first()
         if condominium:
-            condominium.license_id = license.id
+            condominium.license_id = license_id
             condominium.name = activation_data.condominium_name
             if activation_data.condominium_address:
                 condominium.address = activation_data.condominium_address
@@ -182,7 +193,7 @@ def activate_license(
         condominium = Condominium(
             name=activation_data.condominium_name,
             address=activation_data.condominium_address,
-            license_id=license.id,
+            license_id=license_id,
             subscription_plan=license.package_type,
             subscription_status="active"
         )
@@ -190,16 +201,20 @@ def activate_license(
         db.flush()
         
         # Asociar usuario al condominio
-        current_user.condominium_id = condominium.id
+        if USE_SQLITE:
+            current_user.condominium_id = str(condominium.id) if condominium.id else None
+        else:
+            current_user.condominium_id = condominium.id
+        
         if current_user.role == "resident":
             current_user.role = "admin"  # El que activa se convierte en admin
     
     # Activar licencia
     license.activated = True
     license.activated_at = datetime.utcnow()
-    license.activated_by = current_user.id
+    license.activated_by = user_id
     # Asociar licencia al condominio (a través de license_id en condominium)
-    condominium.license_id = license.id
+    condominium.license_id = license_id
     
     db.commit()
     db.refresh(license)
@@ -220,14 +235,26 @@ def get_my_license(
             detail="Usuario no está asociado a un condominio"
         )
     
-    condominium = db.query(Condominium).filter(Condominium.id == current_user.condominium_id).first()
+    # Convertir condominium_id a string si es SQLite
+    if USE_SQLITE:
+        condo_id = str(current_user.condominium_id) if current_user.condominium_id else None
+    else:
+        condo_id = current_user.condominium_id
+    
+    condominium = db.query(Condominium).filter(Condominium.id == condo_id).first()
     if not condominium or not condominium.license_id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Condominio no tiene licencia asociada"
         )
     
-    license = db.query(License).filter(License.id == condominium.license_id).first()
+    # Convertir license_id para la query si es SQLite
+    if USE_SQLITE:
+        license_id = str(condominium.license_id) if condominium.license_id else None
+    else:
+        license_id = condominium.license_id
+    
+    license = db.query(License).filter(License.id == license_id).first() if license_id else None
     if not license:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

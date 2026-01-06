@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List
 from app.db import get_db
 from app.models import Owner, Condominium, User
+from app.models.uuid_helper import USE_SQLITE
 from app.schemas.owner import OwnerCreate, OwnerResponse, CondominiumSummary
 from app.auth import get_current_user
 
@@ -26,14 +27,26 @@ def get_my_condominiums(
             detail="User is not associated with an owner"
         )
     
+    # Convertir owner_id a string si es SQLite
+    if USE_SQLITE:
+        owner_id = str(current_user.owner_id) if current_user.owner_id else None
+    else:
+        owner_id = current_user.owner_id
+    
     condominiums = db.query(Condominium).filter(
-        Condominium.owner_id == current_user.owner_id
+        Condominium.owner_id == owner_id
     ).all()
     
     result = []
     for condo in condominiums:
+        # Convertir condo.id para la query si es SQLite
+        if USE_SQLITE:
+            condo_id = str(condo.id) if condo.id else None
+        else:
+            condo_id = condo.id
+        
         # Contar usuarios, unidades, etc.
-        users_count = db.query(User).filter(User.condominium_id == condo.id).count()
+        users_count = db.query(User).filter(User.condominium_id == condo_id).count() if condo_id else 0
         result.append({
             "id": str(condo.id),
             "name": condo.name,
@@ -63,7 +76,13 @@ def get_owner_info(
             detail="User is not associated with an owner"
         )
     
-    owner = db.query(Owner).filter(Owner.id == current_user.owner_id).first()
+    # Convertir owner_id a string si es SQLite
+    if USE_SQLITE:
+        owner_id = str(current_user.owner_id) if current_user.owner_id else None
+    else:
+        owner_id = current_user.owner_id
+    
+    owner = db.query(Owner).filter(Owner.id == owner_id).first()
     if not owner:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

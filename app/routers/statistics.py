@@ -4,6 +4,7 @@ from typing import Optional
 from datetime import datetime, timedelta, date
 from app.db import get_db
 from app.models import GuardShift, User
+from app.models.uuid_helper import USE_SQLITE
 from app.auth import get_current_user
 
 router = APIRouter()
@@ -35,23 +36,32 @@ def get_attendance_statistics(
     if not end_date:
         end_date = date.today()
     
+    # Convertir condominium_id a string si es SQLite
+    if USE_SQLITE:
+        condo_id = str(current_user.condominium_id) if current_user.condominium_id else None
+    else:
+        condo_id = current_user.condominium_id
+    
     # Query base
     query = db.query(GuardShift).filter(
-        GuardShift.condominium_id == current_user.condominium_id,
+        GuardShift.condominium_id == condo_id,
         GuardShift.shift_date >= datetime.combine(start_date, datetime.min.time()),
         GuardShift.shift_date <= datetime.combine(end_date, datetime.max.time())
     )
     
     if guard_id:
-        from uuid import UUID
-        try:
-            guard_uuid = UUID(guard_id)
-            query = query.filter(GuardShift.guard_id == guard_uuid)
-        except ValueError:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid guard ID format"
-            )
+        if USE_SQLITE:
+            guard_search_id = guard_id
+        else:
+            from uuid import UUID
+            try:
+                guard_search_id = UUID(guard_id)
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid guard ID format"
+                )
+        query = query.filter(GuardShift.guard_id == guard_search_id)
     
     shifts = query.all()
     
@@ -71,7 +81,13 @@ def get_attendance_statistics(
     # Estadísticas por guardia
     guard_stats = {}
     for shift in shifts:
-        guard = db.query(User).filter(User.id == shift.guard_id).first()
+        # Convertir ID para la query si es SQLite
+        if USE_SQLITE:
+            guard_search_id = str(shift.guard_id) if shift.guard_id else None
+        else:
+            guard_search_id = shift.guard_id
+        
+        guard = db.query(User).filter(User.id == guard_search_id).first() if guard_search_id else None
         if not guard:
             continue
         
@@ -152,9 +168,15 @@ def get_compliance_statistics(
     if not end_date:
         end_date = date.today()
     
+    # Convertir condominium_id a string si es SQLite
+    if USE_SQLITE:
+        condo_id = str(current_user.condominium_id) if current_user.condominium_id else None
+    else:
+        condo_id = current_user.condominium_id
+    
     # Obtener turnos completados
     shifts = db.query(GuardShift).filter(
-        GuardShift.condominium_id == current_user.condominium_id,
+        GuardShift.condominium_id == condo_id,
         GuardShift.status == "completed",
         GuardShift.shift_date >= datetime.combine(start_date, datetime.min.time()),
         GuardShift.shift_date <= datetime.combine(end_date, datetime.max.time())

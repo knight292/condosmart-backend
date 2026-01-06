@@ -7,6 +7,7 @@ from io import BytesIO
 import csv
 from app.db import get_db
 from app.models import GuardShift, User, Condominium
+from app.models.uuid_helper import USE_SQLITE
 from app.auth import get_current_user
 from app.routers.guard_shifts import _calculate_shift_times
 
@@ -32,9 +33,15 @@ def export_shifts_pdf(
             detail="User must belong to a condominium"
         )
     
+    # Convertir condominium_id a string si es SQLite
+    if USE_SQLITE:
+        condo_id = str(current_user.condominium_id) if current_user.condominium_id else None
+    else:
+        condo_id = current_user.condominium_id
+    
     # Obtener turnos
     query = db.query(GuardShift).filter(
-        GuardShift.condominium_id == current_user.condominium_id
+        GuardShift.condominium_id == condo_id
     )
     
     if start_date:
@@ -76,9 +83,15 @@ def export_shifts_excel(
             detail="User must belong to a condominium"
         )
     
+    # Convertir condominium_id a string si es SQLite
+    if USE_SQLITE:
+        condo_id = str(current_user.condominium_id) if current_user.condominium_id else None
+    else:
+        condo_id = current_user.condominium_id
+    
     # Obtener turnos
     query = db.query(GuardShift).filter(
-        GuardShift.condominium_id == current_user.condominium_id
+        GuardShift.condominium_id == condo_id
     )
     
     if start_date:
@@ -106,7 +119,13 @@ def export_shifts_excel(
     
     # Datos
     for shift in shifts:
-        guard = db.query(User).filter(User.id == shift.guard_id).first()
+        # Convertir ID para la query si es SQLite
+        if USE_SQLITE:
+            guard_search_id = str(shift.guard_id) if shift.guard_id else None
+        else:
+            guard_search_id = shift.guard_id
+        
+        guard = db.query(User).filter(User.id == guard_search_id).first() if guard_search_id else None
         shift_start, shift_end = _calculate_shift_times(shift.shift_date, shift.shift_type)
         
         writer.writerow([
@@ -132,7 +151,13 @@ def export_shifts_excel(
 
 def _generate_pdf_html(shifts, current_user, db):
     """Genera HTML para PDF (simplificado)"""
-    condo = db.query(Condominium).filter(Condominium.id == current_user.condominium_id).first()
+    # Convertir condominium_id a string si es SQLite
+    if USE_SQLITE:
+        condo_id = str(current_user.condominium_id) if current_user.condominium_id else None
+    else:
+        condo_id = current_user.condominium_id
+    
+    condo = db.query(Condominium).filter(Condominium.id == condo_id).first() if condo_id else None
     condo_name = condo.name if condo else "Condominio"
     
     html = f"""
@@ -169,7 +194,13 @@ def _generate_pdf_html(shifts, current_user, db):
     from app.routers.guard_shifts import _calculate_shift_times
     
     for shift in shifts:
-        guard = db.query(User).filter(User.id == shift.guard_id).first()
+        # Convertir ID para la query si es SQLite
+        if USE_SQLITE:
+            guard_search_id = str(shift.guard_id) if shift.guard_id else None
+        else:
+            guard_search_id = shift.guard_id
+        
+        guard = db.query(User).filter(User.id == guard_search_id).first() if guard_search_id else None
         shift_start, shift_end = _calculate_shift_times(shift.shift_date, shift.shift_type)
         
         shift_type_label = {
