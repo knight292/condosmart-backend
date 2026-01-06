@@ -67,8 +67,15 @@ async def get_user_from_token(token: str, db: Session):
         user_id: str = payload.get("sub")
         if user_id is None:
             return None
-        user_uuid = UUID(user_id) if isinstance(user_id, str) else user_id
-        user = db.query(User).filter(User.id == user_uuid).first()
+        # Usar USE_SQLITE para determinar cómo buscar el usuario
+        from app.models.uuid_helper import USE_SQLITE
+        if USE_SQLITE:
+            # En SQLite, los IDs son strings, usar directamente
+            user = db.query(User).filter(User.id == user_id).first()
+        else:
+            # En PostgreSQL, convertir a UUID
+            user_uuid = UUID(user_id) if isinstance(user_id, str) else user_id
+            user = db.query(User).filter(User.id == user_uuid).first()
         return user
     except (JWTError, ValueError, TypeError):
         return None

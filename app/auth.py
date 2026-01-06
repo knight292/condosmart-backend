@@ -58,9 +58,7 @@ def get_current_user(
     
     # Convertir el string a UUID si es necesario
     # Para SQLite, los IDs son strings, para PostgreSQL son UUIDs
-    import os
-    DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./test_condosmart.db")
-    USE_SQLITE = "sqlite" in DATABASE_URL
+    from app.models.uuid_helper import USE_SQLITE
     
     try:
         if USE_SQLITE:
