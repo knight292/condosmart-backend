@@ -146,6 +146,71 @@ def create_recurring_payment(
     db.commit()
     db.refresh(new_recurring)
     
+    # Generar el primer pago automáticamente si la fecha de inicio ya pasó o es hoy
+    today = date.today()
+    payments_generated = 0
+    if payment_data.start_date <= today:
+        # Calcular fecha de vencimiento
+        if today.month == 12:
+            due_date = date(today.year + 1, 1, payment_data.day_of_month)
+        else:
+            try:
+                due_date = date(today.year, today.month + 1, payment_data.day_of_month)
+            except ValueError:
+                from calendar import monthrange
+                last_day = monthrange(today.year, today.month + 1)[1]
+                due_date = date(today.year, today.month + 1, min(payment_data.day_of_month, last_day))
+        
+        # Obtener usuarios objetivo
+        if user_id_value:
+            # Pago para un usuario específico
+            users = [db.query(User).filter(User.id == user_id_value).first()]
+        else:
+            # Pago para todos los residentes del condominio
+            users = db.query(User).filter(
+                User.condominium_id == condo_id,
+                User.role == "resident"
+            ).all()
+        
+        for user in users:
+            if not user:
+                continue
+            
+            # Verificar si ya existe un pago pendiente para este usuario con esta descripción y fecha
+            user_id_for_payment = str(user.id) if (USE_SQLITE and user.id) else user.id
+            existing_payment = db.query(Payment).filter(
+                Payment.user_id == user_id_for_payment,
+                Payment.condominium_id == condo_id,
+                Payment.status == "pending",
+                Payment.due_date == due_date
+            ).first()
+            
+            if existing_payment:
+                logger.info(f"Ya existe un pago pendiente para {user.email} con fecha {due_date}")
+                continue
+            
+            # Crear nuevo pago
+            new_payment = Payment(
+                user_id=user_id_for_payment,
+                condominium_id=condo_id,
+                amount=payment_data.amount,
+                currency=payment_data.currency,
+                due_date=due_date,
+                status="pending"
+            )
+            db.add(new_payment)
+            payments_generated += 1
+        
+        # Actualizar pago recurrente
+        new_recurring.last_generated = today
+        new_recurring.next_generation = calculate_next_generation(
+            today, payment_data.frequency, payment_data.day_of_month
+        )
+        
+        if payments_generated > 0:
+            db.commit()
+            logger.info(f"Se generaron automáticamente {payments_generated} pagos al crear el pago recurrente")
+    
     # Obtener información adicional
     user_name = None
     if new_recurring.user_id:
@@ -425,7 +490,11 @@ def generate_payments_from_recurring(
     # Obtener usuarios objetivo
     if recurring.user_id:
         # Pago para un usuario específico
-        users = [db.query(User).filter(User.id == recurring.user_id).first()]
+        if USE_SQLITE:
+            user_id_search = str(recurring.user_id) if recurring.user_id else None
+        else:
+            user_id_search = recurring.user_id
+        users = [db.query(User).filter(User.id == user_id_search).first()]
     else:
         # Pago para todos los residentes del condominio
         users = db.query(User).filter(
@@ -476,4 +545,102 @@ def generate_payments_from_recurring(
         "recurring_payment_id": recurring.id,
         "payments_created": len(created_payments),
         "next_generation": recurring.next_generation
+    }
+
+@router.post("/generate-all", status_code=status.HTTP_200_OK)
+def generate_all_pending_payments(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Generar todos los pagos pendientes de todos los pagos recurrentes activos"""
+    if current_user.role not in ["admin", "super_admin", "owner"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo administradores pueden generar pagos"
+        )
+    
+    if not current_user.condominium_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Debes pertenecer a un condominio"
+        )
+    
+    condo_id = str(current_user.condominium_id) if (USE_SQLITE and current_user.condominium_id) else current_user.condominium_id
+    
+    # Obtener todos los pagos recurrentes activos del condominio
+    recurring_payments = db.query(RecurringPayment).filter(
+        RecurringPayment.condominium_id == condo_id,
+        RecurringPayment.is_active == True
+    ).all()
+    
+    today = date.today()
+    total_payments_created = 0
+    
+    for recurring in recurring_payments:
+        # Verificar si hay pagos pendientes de generar
+        if recurring.next_generation and recurring.next_generation <= today:
+            # Calcular fecha de vencimiento
+            if today.month == 12:
+                due_date = date(today.year + 1, 1, recurring.day_of_month)
+            else:
+                try:
+                    due_date = date(today.year, today.month + 1, recurring.day_of_month)
+                except ValueError:
+                    from calendar import monthrange
+                    last_day = monthrange(today.year, today.month + 1)[1]
+                    due_date = date(today.year, today.month + 1, min(recurring.day_of_month, last_day))
+            
+            # Obtener usuarios objetivo
+            if recurring.user_id:
+                if USE_SQLITE:
+                    user_id_search = str(recurring.user_id) if recurring.user_id else None
+                else:
+                    user_id_search = recurring.user_id
+                users = [db.query(User).filter(User.id == user_id_search).first()]
+            else:
+                users = db.query(User).filter(
+                    User.condominium_id == condo_id,
+                    User.role == "resident"
+                ).all()
+            
+            payments_created_for_recurring = 0
+            for user in users:
+                if not user:
+                    continue
+                
+                user_id_for_payment = str(user.id) if (USE_SQLITE and user.id) else user.id
+                existing_payment = db.query(Payment).filter(
+                    Payment.user_id == user_id_for_payment,
+                    Payment.condominium_id == condo_id,
+                    Payment.status == "pending",
+                    Payment.due_date == due_date
+                ).first()
+                
+                if existing_payment:
+                    continue
+                
+                new_payment = Payment(
+                    user_id=user_id_for_payment,
+                    condominium_id=condo_id,
+                    amount=recurring.amount,
+                    currency=recurring.currency,
+                    due_date=due_date,
+                    status="pending"
+                )
+                db.add(new_payment)
+                payments_created_for_recurring += 1
+            
+            if payments_created_for_recurring > 0:
+                recurring.last_generated = today
+                recurring.next_generation = calculate_next_generation(
+                    today, recurring.frequency, recurring.day_of_month
+                )
+                total_payments_created += payments_created_for_recurring
+    
+    if total_payments_created > 0:
+        db.commit()
+    
+    return {
+        "message": f"Se generaron {total_payments_created} pagos pendientes",
+        "payments_created": total_payments_created
     }
