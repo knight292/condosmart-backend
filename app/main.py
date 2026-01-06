@@ -30,7 +30,7 @@ from app.models import (
 # Crear todas las tablas (incluyendo payment_methods)
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="CondoSmart API", version="1.0.0")
+app = FastAPI(title="CondoSmart API", version="1.0.0", redirect_slashes=False)
 
 # Manejo global de excepciones
 @app.exception_handler(HTTPException)
