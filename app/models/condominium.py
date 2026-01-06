@@ -37,5 +37,6 @@ class Condominium(Base):
     shift_templates = relationship("ShiftTemplate", back_populates="condominium")
     packages = relationship("Package", back_populates="condominium")
     payment_methods = relationship("PaymentMethod", back_populates="condominium", cascade="all, delete-orphan")
+    recurring_payments = relationship("RecurringPayment", back_populates="condominium")
     license = relationship("License", back_populates="condominium", uselist=False, foreign_keys=[license_id])
 

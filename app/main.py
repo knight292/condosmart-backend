@@ -24,7 +24,7 @@ from app.models import (
     User, Condominium, Owner, Unit, Payment, PaymentMethod,
     Ticket, TicketAttachment, Visit, Reservation, Announcement,
     Message, Document, Maintenance, Contract, InventoryItem,
-    Regulation, GuardShift, GuardAvailability, ShiftTemplate, ShiftSwap, Package, License
+    Regulation, GuardShift, GuardAvailability, ShiftTemplate, ShiftSwap, Package, License, RecurringPayment
 )
 
 # Crear todas las tablas (incluyendo payment_methods)
@@ -184,9 +184,11 @@ def initialize_test_users():
         
         created_count = 0
         for user_data in usuarios:
+            # Verificar si el usuario de prueba específico ya existe
             existing_user = db.query(User).filter(User.email == user_data["email"]).first()
             
             if not existing_user:
+                # Solo crear si NO existe - esto NO afecta a otros usuarios
                 new_user = User(
                     email=user_data["email"],
                     password_hash=get_password_hash(user_data["password"]),
@@ -198,13 +200,15 @@ def initialize_test_users():
                 )
                 db.add(new_user)
                 created_count += 1
-                logger.info(f"✅ Usuario creado: {user_data['email']} ({user_data['role']})")
+                logger.info(f"✅ Usuario de prueba creado: {user_data['email']} ({user_data['role']})")
+            else:
+                logger.info(f"ℹ️  Usuario de prueba {user_data['email']} ya existe - NO se modifica")
         
         if created_count > 0:
             db.commit()
-            logger.info(f"✅ {created_count} usuarios de prueba creados exitosamente")
+            logger.info(f"✅ {created_count} usuarios de prueba creados. Usuarios existentes NO fueron afectados.")
         else:
-            logger.info("ℹ️  Todos los usuarios de prueba ya existían")
+            logger.info("ℹ️  Todos los usuarios de prueba ya existían. Usuarios existentes NO fueron afectados.")
             
     except Exception as e:
         logger.error(f"❌ Error inicializando usuarios de prueba: {str(e)}")
@@ -273,6 +277,7 @@ app.include_router(reports.router, prefix="/api/reports", tags=["reports"])
 app.include_router(statistics.router, prefix="/api/statistics", tags=["statistics"])
 app.include_router(packages.router, prefix="/api/packages", tags=["packages"])
 app.include_router(licenses.router, prefix="/api/licenses", tags=["licenses"])
+app.include_router(recurring_payments.router, prefix="/api/recurring-payments", tags=["recurring-payments"])
 
 security = HTTPBearer()
 active_connections: dict = {}  # {user_id: websocket}

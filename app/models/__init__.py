@@ -20,6 +20,7 @@ from app.models.shift_template import ShiftTemplate
 from app.models.shift_swap import ShiftSwap
 from app.models.package import Package
 from app.models.license import License
+from app.models.recurring_payment import RecurringPayment
 
 __all__ = [
     "User",
@@ -45,5 +46,6 @@ __all__ = [
     "ShiftSwap",
     "Package",
     "License",
+    "RecurringPayment",
 ]
 
