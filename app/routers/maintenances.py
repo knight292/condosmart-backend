@@ -29,9 +29,13 @@ def create_maintenance(
             detail="User must belong to a condominium"
         )
     
+    # Convertir IDs a string si es SQLite
+    condo_id = str(current_user.condominium_id) if (USE_SQLITE and current_user.condominium_id) else current_user.condominium_id
+    user_id = str(current_user.id) if (USE_SQLITE and current_user.id) else current_user.id
+    
     new_maintenance = Maintenance(
-        condominium_id=current_user.condominium_id,
-        created_by=current_user.id,
+        condominium_id=condo_id,
+        created_by=user_id,
         title=maintenance_data.title,
         description=maintenance_data.description,
         maintenance_type=maintenance_data.maintenance_type,
@@ -48,8 +52,8 @@ def create_maintenance(
     # Crear aviso automático si se solicita notificación
     if maintenance_data.notify_residents:
         announcement = Announcement(
-            condominium_id=current_user.condominium_id,
-            created_by=current_user.id,
+            condominium_id=condo_id,
+            created_by=user_id,
             title=f"Mantenimiento Programado: {maintenance_data.title}",
             content=f"Se ha programado un mantenimiento para el {maintenance_data.scheduled_date.strftime('%d/%m/%Y')}. {maintenance_data.description or ''}",
             category="maintenance",
@@ -79,6 +83,7 @@ def create_maintenance(
     }
     return maintenance_dict
 
+@router.get("", response_model=List[MaintenanceResponse])
 @router.get("/", response_model=List[MaintenanceResponse])
 def get_maintenances(
     status_filter: Optional[str] = None,
@@ -91,8 +96,14 @@ def get_maintenances(
             detail="User must belong to a condominium"
         )
     
+    # Convertir condominium_id a string si es SQLite
+    if USE_SQLITE:
+        condo_id = str(current_user.condominium_id) if current_user.condominium_id else None
+    else:
+        condo_id = current_user.condominium_id
+    
     query = db.query(Maintenance).filter(
-        Maintenance.condominium_id == current_user.condominium_id
+        Maintenance.condominium_id == condo_id
     )
     
     if status_filter:
@@ -102,7 +113,13 @@ def get_maintenances(
     
     result = []
     for maint in maintenances:
-        creator = db.query(User).filter(User.id == maint.created_by).first()
+        # Convertir ID para la query si es SQLite
+        if USE_SQLITE:
+            created_by_id = str(maint.created_by) if maint.created_by else None
+        else:
+            created_by_id = maint.created_by
+        
+        creator = db.query(User).filter(User.id == created_by_id).first() if created_by_id else None
         maint_dict = {
             "id": maint.id,
             "condominium_id": maint.condominium_id,

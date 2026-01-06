@@ -48,9 +48,13 @@ async def create_document(
         content = await file.read()
         f.write(content)
     
+    # Convertir IDs a string si es SQLite
+    condo_id = str(current_user.condominium_id) if (USE_SQLITE and current_user.condominium_id) else current_user.condominium_id
+    user_id = str(current_user.id) if (USE_SQLITE and current_user.id) else current_user.id
+    
     new_document = Document(
-        condominium_id=current_user.condominium_id,
-        uploaded_by=current_user.id,
+        condominium_id=condo_id,
+        uploaded_by=user_id,
         title=title or file.filename,
         description=description,
         file_path=file_path,

@@ -5,6 +5,7 @@ from uuid import UUID
 
 from app.db import get_db
 from app.models import InventoryItem, User
+from app.models.uuid_helper import USE_SQLITE
 from app.schemas.inventory import InventoryItemCreate, InventoryItemUpdate, InventoryItemResponse
 from app.auth import get_current_user
 
@@ -28,9 +29,13 @@ def create_inventory_item(
             detail="User must belong to a condominium"
         )
     
+    # Convertir IDs a string si es SQLite
+    condo_id = str(current_user.condominium_id) if (USE_SQLITE and current_user.condominium_id) else current_user.condominium_id
+    user_id = str(current_user.id) if (USE_SQLITE and current_user.id) else current_user.id
+    
     new_item = InventoryItem(
-        condominium_id=current_user.condominium_id,
-        created_by=current_user.id,
+        condominium_id=condo_id,
+        created_by=user_id,
         name=item_data.name,
         description=item_data.description,
         category=item_data.category,
@@ -71,6 +76,7 @@ def create_inventory_item(
     }
     return item_dict
 
+@router.get("", response_model=List[InventoryItemResponse])
 @router.get("/", response_model=List[InventoryItemResponse])
 def get_inventory_items(
     category: Optional[str] = None,
@@ -84,8 +90,14 @@ def get_inventory_items(
             detail="User must belong to a condominium"
         )
     
+    # Convertir condominium_id a string si es SQLite
+    if USE_SQLITE:
+        condo_id = str(current_user.condominium_id) if current_user.condominium_id else None
+    else:
+        condo_id = current_user.condominium_id
+    
     query = db.query(InventoryItem).filter(
-        InventoryItem.condominium_id == current_user.condominium_id,
+        InventoryItem.condominium_id == condo_id,
         InventoryItem.is_active == True
     )
     
@@ -99,7 +111,13 @@ def get_inventory_items(
     
     result = []
     for item in items:
-        creator = db.query(User).filter(User.id == item.created_by).first()
+        # Convertir ID para la query si es SQLite
+        if USE_SQLITE:
+            created_by_id = str(item.created_by) if item.created_by else None
+        else:
+            created_by_id = item.created_by
+        
+        creator = db.query(User).filter(User.id == created_by_id).first() if created_by_id else None
         item_dict = {
             "id": item.id,
             "condominium_id": item.condominium_id,

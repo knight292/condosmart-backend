@@ -6,6 +6,7 @@ from uuid import UUID
 
 from app.db import get_db
 from app.models import Contract, User, Announcement
+from app.models.uuid_helper import USE_SQLITE
 from app.schemas.contract import ContractCreate, ContractUpdate, ContractResponse
 from app.auth import get_current_user
 
@@ -39,9 +40,13 @@ def create_contract(
     
     renewal_date = calculate_renewal_date(contract_data.end_date)
     
+    # Convertir IDs a string si es SQLite
+    condo_id = str(current_user.condominium_id) if (USE_SQLITE and current_user.condominium_id) else current_user.condominium_id
+    user_id = str(current_user.id) if (USE_SQLITE and current_user.id) else current_user.id
+    
     new_contract = Contract(
-        condominium_id=current_user.condominium_id,
-        created_by=current_user.id,
+        condominium_id=condo_id,
+        created_by=user_id,
         title=contract_data.title,
         description=contract_data.description,
         contract_type=contract_data.contract_type,
@@ -84,6 +89,7 @@ def create_contract(
     }
     return contract_dict
 
+@router.get("", response_model=List[ContractResponse])
 @router.get("/", response_model=List[ContractResponse])
 def get_contracts(
     status_filter: Optional[str] = None,
@@ -102,8 +108,14 @@ def get_contracts(
             detail="User must belong to a condominium"
         )
     
+    # Convertir condominium_id a string si es SQLite
+    if USE_SQLITE:
+        condo_id = str(current_user.condominium_id) if current_user.condominium_id else None
+    else:
+        condo_id = current_user.condominium_id
+    
     query = db.query(Contract).filter(
-        Contract.condominium_id == current_user.condominium_id
+        Contract.condominium_id == condo_id
     )
     
     if status_filter:
@@ -113,7 +125,13 @@ def get_contracts(
     
     result = []
     for contract in contracts:
-        creator = db.query(User).filter(User.id == contract.created_by).first()
+        # Convertir ID para la query si es SQLite
+        if USE_SQLITE:
+            created_by_id = str(contract.created_by) if contract.created_by else None
+        else:
+            created_by_id = contract.created_by
+        
+        creator = db.query(User).filter(User.id == created_by_id).first() if created_by_id else None
         days_until_renewal = None
         if contract.renewal_date:
             days_until_renewal = (contract.renewal_date - date.today()).days
