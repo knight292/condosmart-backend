@@ -4,6 +4,7 @@ from typing import List
 from datetime import datetime, timedelta
 from app.db import get_db
 from app.models import ShiftTemplate, User, GuardShift
+from app.models.uuid_helper import USE_SQLITE
 from app.schemas.shift_template import ShiftTemplateCreate, ShiftTemplateUpdate, ShiftTemplateResponse
 from app.auth import get_current_user
 import json
@@ -28,9 +29,13 @@ def create_template(
             detail="User must belong to a condominium"
         )
     
+    # Convertir IDs a string si es SQLite
+    condo_id = str(current_user.condominium_id) if (USE_SQLITE and current_user.condominium_id) else current_user.condominium_id
+    user_id = str(current_user.id) if (USE_SQLITE and current_user.id) else current_user.id
+    
     new_template = ShiftTemplate(
-        condominium_id=current_user.condominium_id,
-        created_by=current_user.id,
+        condominium_id=condo_id,
+        created_by=user_id,
         name=template_data.name,
         description=template_data.description,
         schedule=template_data.schedule  # Ya viene como lista de dicts
@@ -68,18 +73,25 @@ def apply_template(
             detail="Only admins can apply templates"
         )
     
-    from uuid import UUID
-    try:
-        template_uuid = UUID(template_id)
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid template ID format"
-        )
+    # En SQLite, los IDs son strings, usar directamente
+    # En PostgreSQL, convertir a UUID
+    if USE_SQLITE:
+        template_search_id = template_id
+        condo_id = str(current_user.condominium_id) if current_user.condominium_id else None
+    else:
+        from uuid import UUID
+        try:
+            template_search_id = UUID(template_id) if isinstance(template_id, str) else template_id
+        except (ValueError, TypeError):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid template ID format"
+            )
+        condo_id = current_user.condominium_id
     
     template = db.query(ShiftTemplate).filter(
-        ShiftTemplate.id == template_uuid,
-        ShiftTemplate.condominium_id == current_user.condominium_id
+        ShiftTemplate.id == template_search_id,
+        ShiftTemplate.condominium_id == condo_id
     ).first()
     
     if not template:
@@ -130,10 +142,16 @@ def apply_template(
                 days_to_add += 7
             shift_date = week_start_actual + timedelta(days=days_to_add)
             
+            # Convertir guard_id a string si es SQLite
+            if USE_SQLITE:
+                guard_search_id = str(guard_id) if guard_id else None
+            else:
+                guard_search_id = guard_id
+            
             # Verificar que el guardia existe y pertenece al condominio
             guard = db.query(User).filter(
-                User.id == guard_id,
-                User.condominium_id == current_user.condominium_id,
+                User.id == guard_search_id,
+                User.condominium_id == condo_id,
                 User.role == "guard"
             ).first()
             
@@ -146,8 +164,8 @@ def apply_template(
             shift_start, shift_end = _calculate_shift_times(shift_date, shift_type)
             
             existing_shifts = db.query(GuardShift).filter(
-                GuardShift.guard_id == guard_id,
-                GuardShift.condominium_id == current_user.condominium_id,
+                GuardShift.guard_id == guard_search_id,
+                GuardShift.condominium_id == condo_id,
                 GuardShift.status.in_(["scheduled", "active"])
             ).all()
             
@@ -164,8 +182,8 @@ def apply_template(
             
             # Crear el turno
             new_shift = GuardShift(
-                condominium_id=current_user.condominium_id,
-                guard_id=guard_id,
+                condominium_id=condo_id,
+                guard_id=guard_search_id,
                 shift_date=shift_date,
                 shift_type=shift_type,
                 status="scheduled"
@@ -183,6 +201,7 @@ def apply_template(
         "errors": errors
     }
 
+@router.get("", response_model=List[ShiftTemplateResponse])
 @router.get("/", response_model=List[ShiftTemplateResponse])
 def get_templates(
     current_user: User = Depends(get_current_user),
@@ -194,13 +213,25 @@ def get_templates(
             detail="User must belong to a condominium"
         )
     
+    # Convertir condominium_id a string si es SQLite
+    if USE_SQLITE:
+        condo_id = str(current_user.condominium_id) if current_user.condominium_id else None
+    else:
+        condo_id = current_user.condominium_id
+    
     templates = db.query(ShiftTemplate).filter(
-        ShiftTemplate.condominium_id == current_user.condominium_id
+        ShiftTemplate.condominium_id == condo_id
     ).order_by(ShiftTemplate.created_at.desc()).all()
     
     result = []
     for template in templates:
-        creator = db.query(User).filter(User.id == template.created_by).first()
+        # Convertir ID para la query si es SQLite
+        if USE_SQLITE:
+            created_by_id = str(template.created_by) if template.created_by else None
+        else:
+            created_by_id = template.created_by
+        
+        creator = db.query(User).filter(User.id == created_by_id).first() if created_by_id else None
         result.append(ShiftTemplateResponse(
             id=template.id,
             condominium_id=template.condominium_id,
@@ -223,18 +254,25 @@ def update_template(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    from uuid import UUID
-    try:
-        template_uuid = UUID(template_id)
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid template ID format"
-        )
+    # En SQLite, los IDs son strings, usar directamente
+    # En PostgreSQL, convertir a UUID
+    if USE_SQLITE:
+        template_search_id = template_id
+        condo_id = str(current_user.condominium_id) if current_user.condominium_id else None
+    else:
+        from uuid import UUID
+        try:
+            template_search_id = UUID(template_id) if isinstance(template_id, str) else template_id
+        except (ValueError, TypeError):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid template ID format"
+            )
+        condo_id = current_user.condominium_id
     
     template = db.query(ShiftTemplate).filter(
-        ShiftTemplate.id == template_uuid,
-        ShiftTemplate.condominium_id == current_user.condominium_id
+        ShiftTemplate.id == template_search_id,
+        ShiftTemplate.condominium_id == condo_id
     ).first()
     
     if not template:
@@ -256,7 +294,13 @@ def update_template(
     db.commit()
     db.refresh(template)
     
-    creator = db.query(User).filter(User.id == template.created_by).first()
+    # Convertir ID para la query si es SQLite
+    if USE_SQLITE:
+        created_by_id = str(template.created_by) if template.created_by else None
+    else:
+        created_by_id = template.created_by
+    
+    creator = db.query(User).filter(User.id == created_by_id).first() if created_by_id else None
     return ShiftTemplateResponse(
         id=template.id,
         condominium_id=template.condominium_id,
@@ -276,18 +320,25 @@ def delete_template(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    from uuid import UUID
-    try:
-        template_uuid = UUID(template_id)
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid template ID format"
-        )
+    # En SQLite, los IDs son strings, usar directamente
+    # En PostgreSQL, convertir a UUID
+    if USE_SQLITE:
+        template_search_id = template_id
+        condo_id = str(current_user.condominium_id) if current_user.condominium_id else None
+    else:
+        from uuid import UUID
+        try:
+            template_search_id = UUID(template_id) if isinstance(template_id, str) else template_id
+        except (ValueError, TypeError):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid template ID format"
+            )
+        condo_id = current_user.condominium_id
     
     template = db.query(ShiftTemplate).filter(
-        ShiftTemplate.id == template_uuid,
-        ShiftTemplate.condominium_id == current_user.condominium_id
+        ShiftTemplate.id == template_search_id,
+        ShiftTemplate.condominium_id == condo_id
     ).first()
     
     if not template:
