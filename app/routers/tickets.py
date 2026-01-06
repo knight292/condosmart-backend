@@ -145,7 +145,21 @@ def get_ticket(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
+    # En SQLite, los IDs son strings, usar directamente
+    # En PostgreSQL, convertir a UUID si es necesario
+    if USE_SQLITE:
+        ticket_search_id = ticket_id
+    else:
+        from uuid import UUID
+        try:
+            ticket_search_id = UUID(ticket_id) if isinstance(ticket_id, str) else ticket_id
+        except (ValueError, TypeError):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid ticket ID format"
+            )
+    
+    ticket = db.query(Ticket).filter(Ticket.id == ticket_search_id).first()
     
     if not ticket:
         raise HTTPException(
@@ -177,20 +191,28 @@ def update_ticket(
     db: Session = Depends(get_db)
 ):
     from datetime import datetime
-    from uuid import UUID
+    import logging
+    logger = logging.getLogger(__name__)
     
-    # Convertir el string a UUID si es necesario
-    try:
-        ticket_uuid = UUID(ticket_id) if isinstance(ticket_id, str) else ticket_id
-    except (ValueError, TypeError):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid ticket ID format"
-        )
+    # En SQLite, los IDs son strings, usar directamente
+    # En PostgreSQL, convertir a UUID
+    if USE_SQLITE:
+        ticket_search_id = ticket_id
+    else:
+        from uuid import UUID
+        try:
+            ticket_search_id = UUID(ticket_id) if isinstance(ticket_id, str) else ticket_id
+        except (ValueError, TypeError):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid ticket ID format"
+            )
     
-    ticket = db.query(Ticket).filter(Ticket.id == ticket_uuid).first()
+    logger.info(f"Searching for ticket with ID: {ticket_search_id}, type: {type(ticket_search_id)}, USE_SQLITE: {USE_SQLITE}")
+    ticket = db.query(Ticket).filter(Ticket.id == ticket_search_id).first()
     
     if not ticket:
+        logger.error(f"Ticket not found with ID: {ticket_search_id}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Ticket not found"
