@@ -5,6 +5,7 @@ import uuid
 
 from app.db import get_db
 from app.models import Ticket, TicketAttachment, User
+from app.models.uuid_helper import USE_SQLITE
 from app.schemas.ticket import TicketCreate, TicketResponse, TicketUpdate
 from app.auth import get_current_user
 
@@ -22,9 +23,13 @@ def create_ticket(
             detail="User must belong to a condominium"
         )
     
+    # Convertir IDs a string si es SQLite
+    condo_id = str(current_user.condominium_id) if USE_SQLITE else current_user.condominium_id
+    user_id = str(current_user.id) if USE_SQLITE else current_user.id
+    
     new_ticket = Ticket(
-        condominium_id=current_user.condominium_id,
-        reported_by=current_user.id,
+        condominium_id=condo_id,
+        reported_by=user_id,
         category=ticket_data.category,
         title=ticket_data.title,
         description=ticket_data.description,
