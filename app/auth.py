@@ -68,26 +68,60 @@ def get_current_user(
             # En PostgreSQL, convertir a UUID
             user_uuid = UUID(user_id) if isinstance(user_id, str) else user_id
             user = db.query(User).filter(User.id == user_uuid).first()
-    except (ValueError, TypeError):
+    except (ValueError, TypeError) as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error converting user_id {user_id}: {str(e)}")
         raise credentials_exception
     if user is None:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"User not found with id: {user_id}, type: {type(user_id)}, USE_SQLITE: {USE_SQLITE}")
         raise credentials_exception
+    
+    # Asegurar que los IDs estén en el formato correcto para SQLite
+    if USE_SQLITE:
+        if user.id and not isinstance(user.id, str):
+            user.id = str(user.id)
+        if user.condominium_id and not isinstance(user.condominium_id, str):
+            user.condominium_id = str(user.condominium_id)
+        if user.unit_id and not isinstance(user.unit_id, str):
+            user.unit_id = str(user.unit_id)
+        if user.owner_id and not isinstance(user.owner_id, str):
+            user.owner_id = str(user.owner_id)
     
     # Si el usuario es owner y se especifica un condominio en el header,
     # verificar que el condominio pertenece al owner
     if user.role == "owner" and x_condominium_id:
         try:
-            condo_uuid = UUID(x_condominium_id)
-            condominium = db.query(Condominium).filter(
-                Condominium.id == condo_uuid,
-                Condominium.owner_id == user.owner_id
-            ).first()
+            if USE_SQLITE:
+                condo_id = str(x_condominium_id) if x_condominium_id else None
+            else:
+                condo_id = UUID(x_condominium_id) if isinstance(x_condominium_id, str) else x_condominium_id
             
-            if condominium:
-                # Temporalmente asignar el condominium_id al usuario para esta sesión
-                # Esto permite que los endpoints funcionen como si fuera admin de ese condominio
-                user.condominium_id = condominium.id
-        except (ValueError, TypeError):
+            if condo_id:
+                # Convertir owner_id para la comparación si es SQLite
+                if USE_SQLITE:
+                    owner_id = str(user.owner_id) if user.owner_id else None
+                else:
+                    owner_id = user.owner_id
+                
+                condominium = db.query(Condominium).filter(
+                    Condominium.id == condo_id,
+                    Condominium.owner_id == owner_id
+                ).first()
+                
+                if condominium:
+                    # Temporalmente asignar el condominium_id al usuario para esta sesión
+                    # Esto permite que los endpoints funcionen como si fuera admin de ese condominio
+                    if USE_SQLITE:
+                        user.condominium_id = str(condominium.id) if condominium.id else None
+                    else:
+                        user.condominium_id = condominium.id
+        except (ValueError, TypeError) as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Error setting condominium for owner: {str(e)}")
             pass  # Si el UUID es inválido, continuar sin cambiar el condominium_id
     
     return user
