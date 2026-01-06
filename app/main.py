@@ -259,8 +259,19 @@ async def root():
     return {"message": "CondoSmart API"}
 
 @app.post("/api/recreate-users")
-def recreate_users(db: Session = Depends(get_db)):
-    """Endpoint temporal para recrear usuarios de prueba"""
+def recreate_users(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Endpoint temporal para recrear usuarios de prueba - SOLO SUPER_ADMIN"""
+    from fastapi import HTTPException, status
+    
+    # Proteger el endpoint - solo super_admin puede usarlo
+    if current_user.role != "super_admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only super_admin can recreate users"
+        )
     from app.auth import get_password_hash
     from app.models import Condominium, Unit
     from app.models.uuid_helper import USE_SQLITE
