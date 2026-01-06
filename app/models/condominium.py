@@ -1,8 +1,7 @@
 from sqlalchemy import Column, String, DateTime, ForeignKey
-from app.models.uuid_helper import UUID
+from app.models.uuid_helper import UUID, generate_uuid
 
 from sqlalchemy.orm import relationship
-import uuid
 from datetime import datetime
 
 from app.db import Base
@@ -10,7 +9,7 @@ from app.db import Base
 class Condominium(Base):
     __tablename__ = "condominiums"
 
-    id = Column(UUID, primary_key=True, default=uuid.uuid4)
+    id = Column(UUID, primary_key=True, default=generate_uuid)
     owner_id = Column(UUID, ForeignKey("owners.id"), nullable=True)  # Dueño del condominio
     license_id = Column(UUID, ForeignKey("licenses.id"), nullable=True)  # Licencia asociada
     name = Column(String(255), nullable=False)

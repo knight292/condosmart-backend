@@ -81,6 +81,9 @@ def get_tickets(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    import logging
+    logger = logging.getLogger(__name__)
+    
     query = db.query(Ticket)
     
     # Convertir IDs a string si es SQLite para las comparaciones
@@ -91,22 +94,44 @@ def get_tickets(
         user_id = current_user.id
         condo_id = current_user.condominium_id
     
+    logger.info(f"User role: {current_user.role}, user_id: {user_id}, condo_id: {condo_id}")
+    
     if current_user.role == "resident":
         if user_id:
             query = query.filter(Ticket.reported_by == user_id)
+        else:
+            # Si no tiene user_id, devolver lista vacía
+            return []
     elif current_user.role in ["admin", "super_admin"]:
         if condo_id:
             query = query.filter(Ticket.condominium_id == condo_id)
+        else:
+            # Si no tiene condo_id, devolver lista vacía
+            return []
     elif current_user.role == "owner":
         # Owners pueden ver tickets del condominio seleccionado (asignado temporalmente en auth.py)
         if condo_id:
             query = query.filter(Ticket.condominium_id == condo_id)
+        else:
+            # Si no tiene condo_id, devolver lista vacía
+            return []
+    else:
+        # Rol no reconocido, devolver lista vacía
+        return []
     
     if status_filter:
         query = query.filter(Ticket.status == status_filter)
     
-    tickets = query.order_by(Ticket.created_at.desc()).all()
-    return tickets
+    try:
+        tickets = query.order_by(Ticket.created_at.desc()).all()
+        logger.info(f"Found {len(tickets)} tickets")
+        return tickets
+    except Exception as e:
+        logger.error(f"Error querying tickets: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving tickets: {str(e)}"
+        )
 
 @router.get("/{ticket_id}", response_model=TicketResponse)
 def get_ticket(
