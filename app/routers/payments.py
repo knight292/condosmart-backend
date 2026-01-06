@@ -158,7 +158,13 @@ def get_payments(
         condo_id = current_user.condominium_id
     
     # Si es residente, solo sus pagos. Si es admin u owner, todos los del condominio
-    if current_user.role == "resident":
+    # Los guardias NO pueden ver pagos
+    if current_user.role == "guard":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Los guardias no tienen acceso a los pagos"
+        )
+    elif current_user.role == "resident":
         if user_id:
             query = query.filter(Payment.user_id == user_id)
     elif current_user.role in ["admin", "super_admin", "owner"]:

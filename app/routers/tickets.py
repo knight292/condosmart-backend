@@ -99,7 +99,13 @@ def get_tickets(
         
         logger.info(f"User role: {current_user.role}, user_id: {user_id}, condo_id: {condo_id}")
         
-        if current_user.role == "resident":
+        # Los guardias NO pueden ver tickets
+        if current_user.role == "guard":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Los guardias no tienen acceso a los tickets"
+            )
+        elif current_user.role == "resident":
             if user_id:
                 query = query.filter(Ticket.reported_by == user_id)
             else:
