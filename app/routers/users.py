@@ -168,6 +168,7 @@ def create_user(
     return new_user
 
 @router.patch("/{user_id}", response_model=UserResponse)
+@router.put("/{user_id}", response_model=UserResponse)
 def update_user(
     user_id: str,
     user_update: UserUpdate,
@@ -181,23 +182,34 @@ def update_user(
             detail="Only admins can update users"
         )
     
-    try:
-        user_uuid = UUID(user_id)
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid user ID format"
-        )
+    # Convertir user_id para la búsqueda
+    if USE_SQLITE:
+        user_search_id = str(user_id) if user_id else None
+    else:
+        try:
+            user_search_id = UUID(user_id) if isinstance(user_id, str) else user_id
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid user ID format"
+            )
     
-    user = db.query(User).filter(User.id == user_uuid).first()
+    user = db.query(User).filter(User.id == user_search_id).first()
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found"
         )
     
-    # Verificar que el usuario pertenece al mismo condominio
-    if user.condominium_id != current_user.condominium_id:
+    # Verificar que el usuario pertenece al mismo condominio (manejar SQLite)
+    if USE_SQLITE:
+        user_condo_id = str(user.condominium_id) if user.condominium_id else None
+        current_condo_id = str(current_user.condominium_id) if current_user.condominium_id else None
+    else:
+        user_condo_id = user.condominium_id
+        current_condo_id = current_user.condominium_id
+    
+    if user_condo_id != current_condo_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You can only update users from your condominium"
@@ -209,11 +221,68 @@ def update_user(
     if user_update.phone is not None:
         user.phone = user_update.phone
     if user_update.email:
+        # Verificar que el email no esté en uso por otro usuario
+        existing_user = db.query(User).filter(
+            User.email == user_update.email,
+            User.id != user_search_id
+        ).first()
+        if existing_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email already in use by another user"
+            )
         user.email = user_update.email
     if user_update.is_active is not None:
         user.is_active = user_update.is_active
     if user_update.fcm_token is not None:
         user.fcm_token = user_update.fcm_token
+    if user_update.role is not None:
+        # Solo super_admin puede cambiar roles
+        if current_user.role != "super_admin":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only super_admin can change user roles"
+            )
+        # No permitir cambiar el rol de super_admin
+        if user.role == "super_admin" and user_update.role != "super_admin":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Cannot change super_admin role"
+            )
+        user.role = user_update.role
+    if user_update.unit_id is not None:
+        # Verificar que la unidad existe y pertenece al condominio
+        if user_update.unit_id:
+            if USE_SQLITE:
+                unit_search_id = str(user_update.unit_id) if user_update.unit_id else None
+            else:
+                unit_search_id = user_update.unit_id
+            
+            unit = db.query(Unit).filter(Unit.id == unit_search_id).first()
+            if not unit:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Unit not found"
+                )
+            
+            # Verificar que la unidad pertenece al mismo condominio
+            if USE_SQLITE:
+                unit_condo_id = str(unit.condominium_id) if unit.condominium_id else None
+            else:
+                unit_condo_id = unit.condominium_id
+            
+            if unit_condo_id != current_condo_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Unit does not belong to your condominium"
+                )
+            
+            if USE_SQLITE:
+                user.unit_id = str(user_update.unit_id) if user_update.unit_id else None
+            else:
+                user.unit_id = user_update.unit_id
+        else:
+            user.unit_id = None
     
     db.commit()
     db.refresh(user)
