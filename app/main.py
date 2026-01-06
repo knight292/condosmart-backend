@@ -30,6 +30,122 @@ from app.models import (
 # Crear todas las tablas (incluyendo payment_methods)
 Base.metadata.create_all(bind=engine)
 
+# Función para inicializar usuarios de prueba (solo si no existen)
+def initialize_test_users():
+    """Inicializa usuarios de prueba si no existen - NO BORRA usuarios existentes"""
+    from app.auth import get_password_hash
+    from app.models.uuid_helper import USE_SQLITE
+    import uuid
+    
+    db = next(get_db())
+    try:
+        # Verificar si ya existen usuarios
+        existing_count = db.query(User).count()
+        if existing_count > 0:
+            logger.info(f"✅ Ya existen {existing_count} usuarios en la base de datos. No se crearán usuarios de prueba.")
+            return
+        
+        logger.info("🔄 Inicializando usuarios de prueba...")
+        
+        # 1. Crear condominio de prueba
+        condominium = db.query(Condominium).first()
+        if not condominium:
+            condo_id = str(uuid.uuid4()) if USE_SQLITE else uuid.uuid4()
+            condominium = Condominium(
+                id=condo_id,
+                name="Condominio Prueba",
+                address="Calle Prueba 123",
+                subscription_plan="premium",
+                subscription_status="active"
+            )
+            db.add(condominium)
+            db.commit()
+            db.refresh(condominium)
+            logger.info("✅ Condominio de prueba creado")
+        
+        # 2. Crear unidad de prueba
+        unit = db.query(Unit).first()
+        if not unit:
+            unit_id = str(uuid.uuid4()) if USE_SQLITE else uuid.uuid4()
+            condo_id_value = str(condominium.id) if USE_SQLITE else condominium.id
+            unit = Unit(
+                id=unit_id,
+                condominium_id=condo_id_value,
+                number="101",
+                tower="Torre A",
+                floor=1,
+                type="apartment"
+            )
+            db.add(unit)
+            db.commit()
+            db.refresh(unit)
+            logger.info("✅ Unidad de prueba creada")
+        
+        # 3. Crear usuarios de prueba
+        condo_id_value = str(condominium.id) if USE_SQLITE else condominium.id
+        unit_id_value = str(unit.id) if USE_SQLITE else unit.id
+        
+        usuarios = [
+            {
+                "email": "admin@test.com",
+                "password": "test123",
+                "full_name": "Administrador Test",
+                "role": "admin",
+                "condominium_id": condo_id_value,
+            },
+            {
+                "email": "admin@condosmart.com",
+                "password": "admin123",
+                "full_name": "Super Administrador",
+                "role": "super_admin",
+                "condominium_id": None,
+            },
+            {
+                "email": "juan@test.com",
+                "password": "test123",
+                "full_name": "Juan Pérez",
+                "role": "resident",
+                "condominium_id": condo_id_value,
+                "unit_id": unit_id_value,
+            },
+        ]
+        
+        created_count = 0
+        for user_data in usuarios:
+            existing_user = db.query(User).filter(User.email == user_data["email"]).first()
+            
+            if not existing_user:
+                new_user = User(
+                    email=user_data["email"],
+                    password_hash=get_password_hash(user_data["password"]),
+                    full_name=user_data["full_name"],
+                    role=user_data["role"],
+                    condominium_id=user_data.get("condominium_id"),
+                    unit_id=user_data.get("unit_id"),
+                    is_active=True
+                )
+                db.add(new_user)
+                created_count += 1
+                logger.info(f"✅ Usuario creado: {user_data['email']} ({user_data['role']})")
+        
+        if created_count > 0:
+            db.commit()
+            logger.info(f"✅ {created_count} usuarios de prueba creados exitosamente")
+        else:
+            logger.info("ℹ️  Todos los usuarios de prueba ya existían")
+            
+    except Exception as e:
+        logger.error(f"❌ Error inicializando usuarios de prueba: {str(e)}")
+        db.rollback()
+    finally:
+        db.close()
+
+# Inicializar usuarios de prueba al iniciar (solo si la base está vacía)
+try:
+    initialize_test_users()
+except Exception as e:
+    logger.warning(f"⚠️  No se pudieron inicializar usuarios de prueba: {str(e)}")
+
 app = FastAPI(title="CondoSmart API", version="1.0.0")
 
 # Manejo global de excepciones
