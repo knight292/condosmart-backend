@@ -4,6 +4,7 @@ from typing import List, Optional
 from datetime import date, datetime, timedelta
 from app.db import get_db
 from app.models import GuardAvailability, User
+from app.models.uuid_helper import USE_SQLITE
 from app.schemas.guard_availability import GuardAvailabilityCreate, GuardAvailabilityUpdate, GuardAvailabilityResponse
 from app.auth import get_current_user
 
@@ -27,9 +28,17 @@ def create_availability(
             detail="Guard must belong to a condominium"
         )
     
+    # Convertir IDs a string si es SQLite
+    if USE_SQLITE:
+        guard_id = str(current_user.id) if current_user.id else None
+        condo_id = str(current_user.condominium_id) if current_user.condominium_id else None
+    else:
+        guard_id = current_user.id
+        condo_id = current_user.condominium_id
+    
     # Verificar si ya existe disponibilidad para esta fecha
     existing = db.query(GuardAvailability).filter(
-        GuardAvailability.guard_id == current_user.id,
+        GuardAvailability.guard_id == guard_id,
         GuardAvailability.date == availability_data.date
     ).first()
     
@@ -56,8 +65,8 @@ def create_availability(
         )
     
     new_availability = GuardAvailability(
-        guard_id=current_user.id,
-        condominium_id=current_user.condominium_id,
+        guard_id=guard_id,
+        condominium_id=condo_id,
         date=availability_data.date,
         is_available=availability_data.is_available,
         preferred_shift_types=",".join(availability_data.preferred_shift_types) if availability_data.preferred_shift_types else None,
@@ -80,6 +89,7 @@ def create_availability(
         updated_at=new_availability.updated_at
     )
 
+@router.get("", response_model=List[GuardAvailabilityResponse])
 @router.get("/", response_model=List[GuardAvailabilityResponse])
 def get_availabilities(
     start_date: Optional[date] = Query(None),
@@ -94,24 +104,35 @@ def get_availabilities(
             detail="User must belong to a condominium"
         )
     
+    # Convertir condominium_id a string si es SQLite
+    if USE_SQLITE:
+        condo_id = str(current_user.condominium_id) if current_user.condominium_id else None
+        user_id = str(current_user.id) if current_user.id else None
+    else:
+        condo_id = current_user.condominium_id
+        user_id = current_user.id
+    
     query = db.query(GuardAvailability).filter(
-        GuardAvailability.condominium_id == current_user.condominium_id
+        GuardAvailability.condominium_id == condo_id
     )
     
     # Si es guardia, solo ver su propia disponibilidad
     if current_user.role == "guard":
-        query = query.filter(GuardAvailability.guard_id == current_user.id)
+        query = query.filter(GuardAvailability.guard_id == user_id)
     elif guard_id and current_user.role in ["admin", "super_admin", "owner"]:
         # Admin puede ver disponibilidad de un guardia específico
-        from uuid import UUID
-        try:
-            guard_uuid = UUID(guard_id)
-            query = query.filter(GuardAvailability.guard_id == guard_uuid)
-        except ValueError:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid guard ID format"
-            )
+        if USE_SQLITE:
+            guard_search_id = guard_id
+        else:
+            from uuid import UUID
+            try:
+                guard_search_id = UUID(guard_id)
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid guard ID format"
+                )
+        query = query.filter(GuardAvailability.guard_id == guard_search_id)
     
     if start_date:
         query = query.filter(GuardAvailability.date >= start_date)
@@ -122,7 +143,13 @@ def get_availabilities(
     
     result = []
     for avail in availabilities:
-        guard = db.query(User).filter(User.id == avail.guard_id).first()
+        # Convertir ID para la query si es SQLite
+        if USE_SQLITE:
+            guard_search_id = str(avail.guard_id) if avail.guard_id else None
+        else:
+            guard_search_id = avail.guard_id
+        
+        guard = db.query(User).filter(User.id == guard_search_id).first() if guard_search_id else None
         result.append(GuardAvailabilityResponse(
             id=avail.id,
             guard_id=avail.guard_id,
@@ -144,30 +171,47 @@ def delete_availability(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    from uuid import UUID
-    try:
-        avail_uuid = UUID(availability_id)
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid availability ID format"
-        )
+    # En SQLite, los IDs son strings, usar directamente
+    # En PostgreSQL, convertir a UUID
+    if USE_SQLITE:
+        avail_search_id = availability_id
+    else:
+        from uuid import UUID
+        try:
+            avail_search_id = UUID(availability_id) if isinstance(availability_id, str) else availability_id
+        except (ValueError, TypeError):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid availability ID format"
+            )
     
-    availability = db.query(GuardAvailability).filter(GuardAvailability.id == avail_uuid).first()
+    availability = db.query(GuardAvailability).filter(GuardAvailability.id == avail_search_id).first()
     if not availability:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Availability not found"
         )
     
+    # Convertir IDs para comparación si es SQLite
+    if USE_SQLITE:
+        avail_guard_id = str(availability.guard_id) if availability.guard_id else None
+        user_id = str(current_user.id) if current_user.id else None
+        avail_condo_id = str(availability.condominium_id) if availability.condominium_id else None
+        user_condo_id = str(current_user.condominium_id) if current_user.condominium_id else None
+    else:
+        avail_guard_id = availability.guard_id
+        user_id = current_user.id
+        avail_condo_id = availability.condominium_id
+        user_condo_id = current_user.condominium_id
+    
     # Solo el guardia dueño o un admin puede eliminar
-    if current_user.role == "guard" and availability.guard_id != current_user.id:
+    if current_user.role == "guard" and avail_guard_id != user_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You can only delete your own availability"
         )
     
-    if availability.condominium_id != current_user.condominium_id:
+    if avail_condo_id != user_condo_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized"

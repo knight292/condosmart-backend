@@ -4,6 +4,7 @@ from typing import List, Optional
 from datetime import datetime, date, timedelta
 from app.db import get_db
 from app.models import GuardShift, User
+from app.models.uuid_helper import USE_SQLITE
 from app.schemas.guard_shift import GuardShiftCreate, GuardShiftResponse, GuardShiftUpdate
 from app.auth import get_current_user
 from app.services.email_service import EmailService
@@ -54,11 +55,19 @@ def create_guard_shift(
     # Determinar el guard_id: si es admin/owner y se especifica, usar ese; si no, usar el usuario actual
     guard_id = shift_data.guard_id if shift_data.guard_id else current_user.id
     
+    # Convertir IDs a string si es SQLite
+    if USE_SQLITE:
+        condo_id = str(current_user.condominium_id) if current_user.condominium_id else None
+        guard_search_id = str(guard_id) if guard_id else None
+    else:
+        condo_id = current_user.condominium_id
+        guard_search_id = guard_id
+    
     # Si un admin está asignando a otro guardia, verificar que el guardia pertenece al mismo condominio
     if current_user.role in ["admin", "super_admin", "owner"] and shift_data.guard_id:
         assigned_guard = db.query(User).filter(
-            User.id == guard_id,
-            User.condominium_id == current_user.condominium_id,
+            User.id == guard_search_id,
+            User.condominium_id == condo_id,
             User.role == "guard"
         ).first()
         if not assigned_guard:
@@ -75,8 +84,8 @@ def create_guard_shift(
     
     # Buscar turnos existentes del guardia
     existing_shifts = db.query(GuardShift).filter(
-        GuardShift.guard_id == guard_id,
-        GuardShift.condominium_id == current_user.condominium_id,
+        GuardShift.guard_id == guard_search_id,
+        GuardShift.condominium_id == condo_id,
         GuardShift.status.in_(["scheduled", "active"])
     ).all()
     
@@ -96,8 +105,8 @@ def create_guard_shift(
         )
 
     new_shift = GuardShift(
-        condominium_id=current_user.condominium_id,
-        guard_id=guard_id,
+        condominium_id=condo_id,
+        guard_id=guard_search_id,
         shift_date=shift_data.shift_date,
         shift_type=shift_data.shift_type,
         notes=shift_data.notes,
@@ -108,8 +117,8 @@ def create_guard_shift(
     db.refresh(new_shift)
     
     # Notificación: Si un admin asignó el turno, notificar al guardia
-    if current_user.role in ["admin", "super_admin", "owner"] and guard_id != current_user.id:
-        assigned_guard = db.query(User).filter(User.id == guard_id).first()
+    if current_user.role in ["admin", "super_admin", "owner"] and guard_search_id != str(current_user.id) if USE_SQLITE else guard_id != current_user.id:
+        assigned_guard = db.query(User).filter(User.id == guard_search_id).first()
         if assigned_guard:
             shift_type_label = {
                 "morning": "Mañana",
@@ -185,9 +194,15 @@ def get_available_guards(
             detail="User must belong to a condominium"
         )
     
+    # Convertir condominium_id a string si es SQLite
+    if USE_SQLITE:
+        condo_id = str(current_user.condominium_id) if current_user.condominium_id else None
+    else:
+        condo_id = current_user.condominium_id
+    
     # Obtener todos los guardias del condominio
     guards = db.query(User).filter(
-        User.condominium_id == current_user.condominium_id,
+        User.condominium_id == condo_id,
         User.role == "guard",
         User.is_active == True
     ).all()
@@ -198,10 +213,16 @@ def get_available_guards(
     # Verificar qué guardias tienen conflictos
     available_guards = []
     for guard in guards:
+        # Convertir guard.id a string si es SQLite
+        if USE_SQLITE:
+            guard_search_id = str(guard.id) if guard.id else None
+        else:
+            guard_search_id = guard.id
+        
         # Buscar turnos existentes del guardia
         existing_shifts = db.query(GuardShift).filter(
-            GuardShift.guard_id == guard.id,
-            GuardShift.condominium_id == current_user.condominium_id,
+            GuardShift.guard_id == guard_search_id,
+            GuardShift.condominium_id == condo_id,
             GuardShift.status.in_(["scheduled", "active"])
         ).all()
         
@@ -228,6 +249,7 @@ def get_available_guards(
         "guards": available_guards
     }
 
+@router.get("", response_model=List[GuardShiftResponse])
 @router.get("/", response_model=List[GuardShiftResponse])
 def get_guard_shifts(
     date_filter: Optional[date] = Query(None, alias="date"),
@@ -240,13 +262,21 @@ def get_guard_shifts(
             detail="User must belong to a condominium"
         )
 
+    # Convertir condominium_id a string si es SQLite
+    if USE_SQLITE:
+        condo_id = str(current_user.condominium_id) if current_user.condominium_id else None
+        user_id = str(current_user.id) if current_user.id else None
+    else:
+        condo_id = current_user.condominium_id
+        user_id = current_user.id
+    
     query = db.query(GuardShift).filter(
-        GuardShift.condominium_id == current_user.condominium_id
+        GuardShift.condominium_id == condo_id
     )
 
     # Si es guardia, solo ver sus propios turnos
     if current_user.role == "guard":
-        query = query.filter(GuardShift.guard_id == current_user.id)
+        query = query.filter(GuardShift.guard_id == user_id)
 
     # Filtrar por fecha si se proporciona
     if date_filter:
@@ -262,7 +292,13 @@ def get_guard_shifts(
     # Agregar nombres de guardias y calcular shift_start/shift_end
     result = []
     for shift in shifts:
-        guard = db.query(User).filter(User.id == shift.guard_id).first()
+        # Convertir ID para la query si es SQLite
+        if USE_SQLITE:
+            guard_search_id = str(shift.guard_id) if shift.guard_id else None
+        else:
+            guard_search_id = shift.guard_id
+        
+        guard = db.query(User).filter(User.id == guard_search_id).first() if guard_search_id else None
         shift_start, shift_end = _calculate_shift_times(shift.shift_date, shift.shift_type)
         result.append(GuardShiftResponse(
             id=shift.id,
@@ -294,10 +330,16 @@ def get_current_guard(
             detail="User must belong to a condominium"
         )
 
+    # Convertir condominium_id a string si es SQLite
+    if USE_SQLITE:
+        condo_id = str(current_user.condominium_id) if current_user.condominium_id else None
+    else:
+        condo_id = current_user.condominium_id
+    
     now = datetime.utcnow()
     # Buscar turno activo (status='active' o 'scheduled' y la fecha coincide)
     current_shift = db.query(GuardShift).filter(
-        GuardShift.condominium_id == current_user.condominium_id,
+        GuardShift.condominium_id == condo_id,
         GuardShift.shift_date <= now,
         GuardShift.status.in_(["scheduled", "active"]),
         # El turno debe estar en el rango de tiempo apropiado
@@ -307,7 +349,13 @@ def get_current_guard(
     if not current_shift:
         return None
 
-    guard = db.query(User).filter(User.id == current_shift.guard_id).first()
+    # Convertir ID para la query si es SQLite
+    if USE_SQLITE:
+        guard_search_id = str(current_shift.guard_id) if current_shift.guard_id else None
+    else:
+        guard_search_id = current_shift.guard_id
+    
+    guard = db.query(User).filter(User.id == guard_search_id).first() if guard_search_id else None
     shift_start, shift_end = _calculate_shift_times(current_shift.shift_date, current_shift.shift_type)
     return GuardShiftResponse(
         id=current_shift.id,
@@ -333,30 +381,47 @@ def update_guard_shift(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    from uuid import UUID
-    try:
-        shift_uuid = UUID(shift_id)
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid shift ID format"
-        )
+    # En SQLite, los IDs son strings, usar directamente
+    # En PostgreSQL, convertir a UUID
+    if USE_SQLITE:
+        shift_search_id = shift_id
+    else:
+        from uuid import UUID
+        try:
+            shift_search_id = UUID(shift_id) if isinstance(shift_id, str) else shift_id
+        except (ValueError, TypeError):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid shift ID format"
+            )
 
-    shift = db.query(GuardShift).filter(GuardShift.id == shift_uuid).first()
+    shift = db.query(GuardShift).filter(GuardShift.id == shift_search_id).first()
     if not shift:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Shift not found"
         )
 
+    # Convertir IDs para comparación si es SQLite
+    if USE_SQLITE:
+        shift_guard_id = str(shift.guard_id) if shift.guard_id else None
+        user_id = str(current_user.id) if current_user.id else None
+        shift_condo_id = str(shift.condominium_id) if shift.condominium_id else None
+        user_condo_id = str(current_user.condominium_id) if current_user.condominium_id else None
+    else:
+        shift_guard_id = shift.guard_id
+        user_id = current_user.id
+        shift_condo_id = shift.condominium_id
+        user_condo_id = current_user.condominium_id
+    
     # Solo el guardia dueño del turno o un admin puede actualizarlo
-    if current_user.role == "guard" and shift.guard_id != current_user.id:
+    if current_user.role == "guard" and shift_guard_id != user_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You can only update your own shifts"
         )
 
-    if shift.condominium_id != current_user.condominium_id:
+    if shift_condo_id != user_condo_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized"
@@ -379,7 +444,13 @@ def update_guard_shift(
     db.commit()
     db.refresh(shift)
 
-    guard = db.query(User).filter(User.id == shift.guard_id).first()
+    # Convertir ID para la query si es SQLite
+    if USE_SQLITE:
+        guard_search_id = str(shift.guard_id) if shift.guard_id else None
+    else:
+        guard_search_id = shift.guard_id
+    
+    guard = db.query(User).filter(User.id == guard_search_id).first() if guard_search_id else None
     shift_start, shift_end = _calculate_shift_times(shift.shift_date, shift.shift_type)
     return GuardShiftResponse(
         id=shift.id,
