@@ -230,7 +230,11 @@ def update_ticket(
         if ticket_update.status == "resolved":
             ticket.resolved_at = datetime.utcnow()
     if ticket_update.assigned_to:
-        ticket.assigned_to = ticket_update.assigned_to
+        # Convertir assigned_to a string si es SQLite
+        if USE_SQLITE:
+            ticket.assigned_to = str(ticket_update.assigned_to) if ticket_update.assigned_to else None
+        else:
+            ticket.assigned_to = ticket_update.assigned_to
     if ticket_update.priority:
         ticket.priority = ticket_update.priority
     
