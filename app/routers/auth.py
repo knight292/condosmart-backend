@@ -47,12 +47,28 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)):
                 detail="Condominium not found"
             )
         
-        # Verificar que el condominio tiene licencia activa
-        if not condominium.license_id:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="El condominio no tiene una licencia activa"
-            )
+        # Verificar que el condominio tiene licencia activa (solo para residentes, no para admins)
+        # Los admins pueden crear usuarios antes de activar la licencia
+        if user_data.role not in ["admin", "super_admin"]:
+            if not condominium.license_id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="El condominio no tiene una licencia activa. Debe activar una licencia antes de crear usuarios."
+                )
+            
+            # Verificar que la licencia está activada
+            from app.models import License
+            if USE_SQLITE:
+                license_search_id = str(condominium.license_id) if condominium.license_id else None
+            else:
+                license_search_id = condominium.license_id
+            
+            license = db.query(License).filter(License.id == license_search_id).first() if license_search_id else None
+            if not license or not license.activated:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="La licencia del condominio no está activa. Debe activar la licencia antes de crear usuarios."
+                )
     
     if user_data.unit_id:
         unit_id = str(user_data.unit_id) if (USE_SQLITE and user_data.unit_id) else user_data.unit_id
