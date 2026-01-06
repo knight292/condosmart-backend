@@ -1,8 +1,7 @@
 from sqlalchemy import Column, String, Numeric, Date, DateTime, ForeignKey
-from app.models.uuid_helper import UUID
+from app.models.uuid_helper import UUID, generate_uuid
 
 from sqlalchemy.orm import relationship
-import uuid
 from datetime import datetime
 
 from app.db import Base
@@ -10,7 +9,7 @@ from app.db import Base
 class Payment(Base):
     __tablename__ = "payments"
 
-    id = Column(UUID, primary_key=True, default=uuid.uuid4)
+    id = Column(UUID, primary_key=True, default=generate_uuid)
     user_id = Column(UUID, ForeignKey("users.id"), nullable=False)
     condominium_id = Column(UUID, ForeignKey("condominiums.id"), nullable=False)
     amount = Column(Numeric(10, 2), nullable=False)

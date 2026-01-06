@@ -1,8 +1,7 @@
 from sqlalchemy import Column, String, DateTime, ForeignKey, Boolean
-from app.models.uuid_helper import UUID
+from app.models.uuid_helper import UUID, generate_uuid
 
 from sqlalchemy.orm import relationship
-import uuid
 from datetime import datetime
 
 from app.db import Base
@@ -10,7 +9,7 @@ from app.db import Base
 class ShiftSwap(Base):
     __tablename__ = "shift_swaps"
 
-    id = Column(UUID, primary_key=True, default=uuid.uuid4)
+    id = Column(UUID, primary_key=True, default=generate_uuid)
     shift_id = Column(UUID, ForeignKey("guard_shifts.id"), nullable=False)
     requested_by = Column(UUID, ForeignKey("users.id"), nullable=False)  # Guardia que solicita
     requested_to = Column(UUID, ForeignKey("users.id"), nullable=True)  # Guardia específico (opcional)

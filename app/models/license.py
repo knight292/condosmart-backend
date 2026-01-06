@@ -1,8 +1,7 @@
 from sqlalchemy import Column, String, DateTime, ForeignKey, Integer, Boolean
-from app.models.uuid_helper import UUID
+from app.models.uuid_helper import UUID, generate_uuid
 
 from sqlalchemy.orm import relationship
-import uuid
 from datetime import datetime
 
 from app.db import Base
@@ -10,7 +9,7 @@ from app.db import Base
 class License(Base):
     __tablename__ = "licenses"
 
-    id = Column(UUID, primary_key=True, default=uuid.uuid4)
+    id = Column(UUID, primary_key=True, default=generate_uuid)
     code = Column(String(50), unique=True, nullable=False, index=True)  # Código único de activación
     package_type = Column(String(50), nullable=False)  # "basic" ($40k), "intermediate" ($60k), "premium" ($80k)
     max_units = Column(Integer, nullable=True)  # Límite de unidades según paquete (null = ilimitado)

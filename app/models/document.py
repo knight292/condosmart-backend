@@ -1,8 +1,7 @@
 from sqlalchemy import Column, String, Text, ForeignKey, DateTime, Integer
-from app.models.uuid_helper import UUID
+from app.models.uuid_helper import UUID, generate_uuid
 
 from sqlalchemy.orm import relationship
-import uuid
 from datetime import datetime
 
 from app.db import Base
@@ -10,7 +9,7 @@ from app.db import Base
 class Document(Base):
     __tablename__ = "documents"
 
-    id = Column(UUID, primary_key=True, default=uuid.uuid4)
+    id = Column(UUID, primary_key=True, default=generate_uuid)
     condominium_id = Column(UUID, ForeignKey("condominiums.id"), nullable=False)
     uploaded_by = Column(UUID, ForeignKey("users.id"), nullable=False)
     title = Column(String(255), nullable=False)
