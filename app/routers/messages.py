@@ -67,10 +67,16 @@ def create_message(
             detail="User must belong to a condominium"
         )
     
+    # Convertir UUIDs a string si es necesario (para SQLite)
+    from app.models.uuid_helper import USE_SQLITE
+    condominium_id = str(current_user.condominium_id) if USE_SQLITE else current_user.condominium_id
+    sender_id = str(current_user.id) if USE_SQLITE else current_user.id
+    receiver_id = str(message_data.receiver_id) if (USE_SQLITE and message_data.receiver_id) else message_data.receiver_id
+    
     new_message = Message(
-        condominium_id=current_user.condominium_id,
-        sender_id=current_user.id,
-        receiver_id=message_data.receiver_id,
+        condominium_id=condominium_id,
+        sender_id=sender_id,
+        receiver_id=receiver_id,
         conversation_type=message_data.conversation_type,
         tower=message_data.tower,
         content=message_data.content

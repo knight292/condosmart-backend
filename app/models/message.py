@@ -1,5 +1,5 @@
 from sqlalchemy import Column, String, Text, Boolean, ForeignKey, DateTime
-from app.models.uuid_helper import UUID
+from app.models.uuid_helper import UUID, USE_SQLITE
 
 from sqlalchemy.orm import relationship
 import uuid
@@ -7,10 +7,16 @@ from datetime import datetime
 
 from app.db import Base
 
+def generate_uuid():
+    """Genera UUID como string para SQLite o como objeto UUID para PostgreSQL"""
+    if USE_SQLITE:
+        return str(uuid.uuid4())
+    return uuid.uuid4()
+
 class Message(Base):
     __tablename__ = "messages"
 
-    id = Column(UUID, primary_key=True, default=uuid.uuid4)
+    id = Column(UUID, primary_key=True, default=generate_uuid)
     condominium_id = Column(UUID, ForeignKey("condominiums.id"), nullable=False)
     sender_id = Column(UUID, ForeignKey("users.id"), nullable=False)
     receiver_id = Column(UUID, ForeignKey("users.id"), nullable=True)

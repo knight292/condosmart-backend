@@ -148,9 +148,14 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(None)):
                 continue
             
             # Guardar mensaje en la base de datos
+            # Convertir UUIDs a string si es necesario (para SQLite)
+            from app.models.uuid_helper import USE_SQLITE
+            condominium_id = str(user.condominium_id) if USE_SQLITE else user.condominium_id
+            sender_id = str(user.id) if USE_SQLITE else user.id
+            
             new_message = Message(
-                condominium_id=user.condominium_id,
-                sender_id=user.id,
+                condominium_id=condominium_id,
+                sender_id=sender_id,
                 conversation_type=message_json.get("conversation_type", "general"),
                 content=content
             )
