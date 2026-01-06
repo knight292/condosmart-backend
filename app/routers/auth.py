@@ -43,8 +43,26 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)):
 
 @router.post("/login", response_model=Token)
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    print(f"🔍 Intentando login para email: {form_data.username}")
     user = db.query(User).filter(User.email == form_data.username).first()
-    if not user or not verify_password(form_data.password, user.password_hash):
+    
+    if not user:
+        print(f"❌ Usuario no encontrado: {form_data.username}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    print(f"✅ Usuario encontrado: {user.email}, ID: {user.id}, Tipo ID: {type(user.id)}")
+    print(f"🔍 Verificando contraseña...")
+    print(f"🔍 Password hash en DB: {user.password_hash[:50] if user.password_hash else 'None'}...")
+    
+    password_valid = verify_password(form_data.password, user.password_hash)
+    print(f"🔍 Resultado verificación contraseña: {password_valid}")
+    
+    if not password_valid:
+        print(f"❌ Contraseña incorrecta para: {form_data.username}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
