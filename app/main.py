@@ -39,9 +39,14 @@ def initialize_test_users():
     
     db = next(get_db())
     try:
-        # Verificar si ya existen usuarios
+        # Verificar si ya existen usuarios ANTES de cualquier operación
         existing_count = db.query(User).count()
-        logger.info(f"🔍 Usuarios existentes en la base de datos: {existing_count}")
+        logger.info(f"🔍 Usuarios existentes en la base de datos ANTES de inicialización: {existing_count}")
+        
+        # Listar todos los emails de usuarios existentes para verificación
+        existing_users = db.query(User.email).all()
+        existing_emails = [email[0] for email in existing_users] if existing_users else []
+        logger.info(f"📋 Emails de usuarios existentes: {existing_emails}")
         
         if existing_count > 0:
             logger.info(f"✅ Ya existen {existing_count} usuarios en la base de datos. NO se crearán usuarios de prueba.")
