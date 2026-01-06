@@ -185,8 +185,9 @@ def initialize_test_users():
         ]
         
         created_count = 0
+        skipped_count = 0
         for user_data in usuarios:
-            # Verificar si el usuario de prueba específico ya existe
+            # Verificar si el usuario de prueba específico ya existe (SOLO por email)
             existing_user = db.query(User).filter(User.email == user_data["email"]).first()
             
             if not existing_user:
@@ -204,13 +205,22 @@ def initialize_test_users():
                 created_count += 1
                 logger.info(f"✅ Usuario de prueba creado: {user_data['email']} ({user_data['role']})")
             else:
-                logger.info(f"ℹ️  Usuario de prueba {user_data['email']} ya existe - NO se modifica")
+                skipped_count += 1
+                logger.info(f"ℹ️  Usuario de prueba {user_data['email']} ya existe - NO se modifica ni se borra")
         
         if created_count > 0:
             db.commit()
-            logger.info(f"✅ {created_count} usuarios de prueba creados. Usuarios existentes NO fueron afectados.")
+            logger.info(f"✅ {created_count} usuarios de prueba creados. {skipped_count} ya existían. Usuarios existentes NO fueron afectados.")
         else:
-            logger.info("ℹ️  Todos los usuarios de prueba ya existían. Usuarios existentes NO fueron afectados.")
+            logger.info(f"ℹ️  Todos los usuarios de prueba ya existían ({skipped_count}). Usuarios existentes NO fueron afectados.")
+        
+        # IMPORTANTE: Verificar que no se borraron usuarios
+        final_count = db.query(User).count()
+        if final_count < existing_count:
+            logger.error(f"⚠️  ADVERTENCIA CRÍTICA: El número de usuarios disminuyó de {existing_count} a {final_count}. Esto NO debería pasar.")
+            logger.error(f"⚠️  Esto indica que se borraron {existing_count - final_count} usuarios. Revisar logs inmediatamente.")
+        else:
+            logger.info(f"✅ Verificación: Total de usuarios después de inicialización: {final_count} (antes: {existing_count})")
             
     except Exception as e:
         logger.error(f"❌ Error inicializando usuarios de prueba: {str(e)}")
