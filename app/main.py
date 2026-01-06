@@ -234,6 +234,8 @@ def recreate_users(db: Session = Depends(get_db)):
     """Endpoint temporal para recrear usuarios de prueba"""
     from app.auth import get_password_hash
     from app.models import Condominium, Unit
+    from app.models.uuid_helper import USE_SQLITE
+    import uuid
     
     try:
         print("🔄 Recreando usuarios de prueba...")
@@ -241,7 +243,10 @@ def recreate_users(db: Session = Depends(get_db)):
         # 1. Crear o obtener condominio
         condominium = db.query(Condominium).first()
         if not condominium:
+            # Crear ID como string si es SQLite
+            condo_id = str(uuid.uuid4()) if USE_SQLITE else uuid.uuid4()
             condominium = Condominium(
+                id=condo_id,
                 name="Condominio Prueba",
                 address="Calle Prueba 123",
                 subscription_plan="small",
@@ -254,8 +259,13 @@ def recreate_users(db: Session = Depends(get_db)):
         # 2. Crear o obtener unidad
         unit = db.query(Unit).first()
         if not unit:
+            # Crear ID como string si es SQLite
+            unit_id = str(uuid.uuid4()) if USE_SQLITE else uuid.uuid4()
+            # Asegurar que condominium_id sea string si es SQLite
+            condo_id_value = str(condominium.id) if USE_SQLITE else condominium.id
             unit = Unit(
-                condominium_id=condominium.id,
+                id=unit_id,
+                condominium_id=condo_id_value,
                 number="101",
                 tower="Torre A",
                 floor=1,
@@ -266,13 +276,17 @@ def recreate_users(db: Session = Depends(get_db)):
             db.refresh(unit)
         
         # 3. Crear usuarios
+        # Convertir IDs a string si es SQLite
+        condo_id_value = str(condominium.id) if USE_SQLITE else condominium.id
+        unit_id_value = str(unit.id) if USE_SQLITE else unit.id
+        
         usuarios = [
             {
                 "email": "admin@test.com",
                 "password": "test123",
                 "full_name": "Administrador Test",
                 "role": "admin",
-                "condominium_id": condominium.id,
+                "condominium_id": condo_id_value,
             },
             {
                 "email": "admin@condosmart.com",
@@ -286,8 +300,8 @@ def recreate_users(db: Session = Depends(get_db)):
                 "password": "test123",
                 "full_name": "Juan Pérez",
                 "role": "resident",
-                "condominium_id": condominium.id,
-                "unit_id": unit.id,
+                "condominium_id": condo_id_value,
+                "unit_id": unit_id_value,
             },
         ]
         
