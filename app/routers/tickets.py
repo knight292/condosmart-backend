@@ -87,43 +87,43 @@ def get_tickets(
     
     try:
         query = db.query(Ticket)
-    
-    # Convertir IDs a string si es SQLite para las comparaciones
-    if USE_SQLITE:
-        user_id = str(current_user.id) if current_user.id else None
-        condo_id = str(current_user.condominium_id) if current_user.condominium_id else None
-    else:
-        user_id = current_user.id
-        condo_id = current_user.condominium_id
-    
-    logger.info(f"User role: {current_user.role}, user_id: {user_id}, condo_id: {condo_id}")
-    
-    if current_user.role == "resident":
-        if user_id:
-            query = query.filter(Ticket.reported_by == user_id)
+        
+        # Convertir IDs a string si es SQLite para las comparaciones
+        if USE_SQLITE:
+            user_id = str(current_user.id) if current_user.id else None
+            condo_id = str(current_user.condominium_id) if current_user.condominium_id else None
         else:
-            # Si no tiene user_id, devolver lista vacía
-            return []
-    elif current_user.role in ["admin", "super_admin"]:
-        if condo_id:
-            query = query.filter(Ticket.condominium_id == condo_id)
+            user_id = current_user.id
+            condo_id = current_user.condominium_id
+        
+        logger.info(f"User role: {current_user.role}, user_id: {user_id}, condo_id: {condo_id}")
+        
+        if current_user.role == "resident":
+            if user_id:
+                query = query.filter(Ticket.reported_by == user_id)
+            else:
+                # Si no tiene user_id, devolver lista vacía
+                return []
+        elif current_user.role in ["admin", "super_admin"]:
+            if condo_id:
+                query = query.filter(Ticket.condominium_id == condo_id)
+            else:
+                # Si no tiene condo_id, devolver lista vacía
+                return []
+        elif current_user.role == "owner":
+            # Owners pueden ver tickets del condominio seleccionado (asignado temporalmente en auth.py)
+            if condo_id:
+                query = query.filter(Ticket.condominium_id == condo_id)
+            else:
+                # Si no tiene condo_id, devolver lista vacía
+                return []
         else:
-            # Si no tiene condo_id, devolver lista vacía
+            # Rol no reconocido, devolver lista vacía
             return []
-    elif current_user.role == "owner":
-        # Owners pueden ver tickets del condominio seleccionado (asignado temporalmente en auth.py)
-        if condo_id:
-            query = query.filter(Ticket.condominium_id == condo_id)
-        else:
-            # Si no tiene condo_id, devolver lista vacía
-            return []
-    else:
-        # Rol no reconocido, devolver lista vacía
-        return []
-    
-    if status_filter:
-        query = query.filter(Ticket.status == status_filter)
-    
+        
+        if status_filter:
+            query = query.filter(Ticket.status == status_filter)
+        
         tickets = query.order_by(Ticket.created_at.desc()).all()
         logger.info(f"Found {len(tickets)} tickets")
         return tickets
