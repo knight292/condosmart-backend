@@ -1,9 +1,12 @@
-from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect, Query
+from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect, Query, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 import uvicorn
 from typing import List
+import logging
+import traceback
 
 from app.db import engine, Base, get_db
 from app.routers import auth, payments, payment_methods, tickets, visits, reservations, announcements, messages, documents, maintenances, contracts, inventory, regulations, owners, users, guard_shifts, guard_availability, shift_templates, shift_swaps, packages, reports, statistics, licenses
@@ -11,6 +14,10 @@ from app.auth import get_current_user, SECRET_KEY, ALGORITHM
 from jose import jwt, JWTError
 from uuid import UUID
 import json
+
+# Configurar logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Importar todos los modelos para asegurar que se registren en Base.metadata antes de crear las tablas
 from app.models import (
@@ -24,6 +31,16 @@ from app.models import (
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="CondoSmart API", version="1.0.0")
+
+# Manejo global de excepciones
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Unhandled exception: {str(exc)}")
+    logger.error(traceback.format_exc())
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={"detail": f"Internal server error: {str(exc)}"}
+    )
 
 app.add_middleware(
     CORSMiddleware,
