@@ -9,7 +9,7 @@ import logging
 import traceback
 
 from app.db import engine, Base, get_db
-from app.routers import auth, payments, payment_methods, tickets, visits, reservations, announcements, messages, documents, maintenances, contracts, inventory, regulations, owners, users, guard_shifts, guard_availability, shift_templates, shift_swaps, packages, reports, statistics, licenses
+from app.routers import auth, payments, payment_methods, tickets, visits, reservations, announcements, messages, documents, maintenances, contracts, inventory, regulations, owners, users, guard_shifts, guard_availability, shift_templates, shift_swaps, packages, reports, statistics, licenses, recurring_payments
 from app.auth import get_current_user, SECRET_KEY, ALGORITHM
 from jose import jwt, JWTError
 from uuid import UUID
