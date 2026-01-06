@@ -1,15 +1,14 @@
 from sqlalchemy import Column, String, Boolean, ForeignKey, Text
-from app.models.uuid_helper import UUID
+from app.models.uuid_helper import UUID, generate_uuid
 
 from sqlalchemy.orm import relationship
-import uuid
 
 from app.db import Base
 
 class PaymentMethod(Base):
     __tablename__ = "payment_methods"
 
-    id = Column(UUID, primary_key=True, default=uuid.uuid4)
+    id = Column(UUID, primary_key=True, default=generate_uuid)
     condominium_id = Column(UUID, ForeignKey("condominiums.id"), nullable=False)
     
     # Tipo de método: 'bank_deposit', 'card', 'spei', 'oxxo', 'cash', etc.
