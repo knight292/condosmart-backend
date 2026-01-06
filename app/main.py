@@ -42,7 +42,42 @@ def initialize_test_users():
         # Verificar si ya existen usuarios
         existing_count = db.query(User).count()
         if existing_count > 0:
-            logger.info(f"✅ Ya existen {existing_count} usuarios en la base de datos. No se crearán usuarios de prueba.")
+            logger.info(f"✅ Ya existen {existing_count} usuarios en la base de datos.")
+            # Aún así, verificar y crear licencia si el condominio no la tiene
+            condominium = db.query(Condominium).first()
+            if condominium and not condominium.license_id:
+                from app.models import License
+                from datetime import datetime
+                
+                # Verificar si ya existe una licencia de prueba
+                test_license = db.query(License).filter(License.code == "CS-TEST-0000-0000").first()
+                
+                if not test_license:
+                    license_id = str(uuid.uuid4()) if USE_SQLITE else uuid.uuid4()
+                    test_license = License(
+                        id=license_id,
+                        code="CS-TEST-0000-0000",
+                        package_type="premium",
+                        max_units=None,
+                        max_users=None,
+                        activated=True,
+                        activated_at=datetime.utcnow(),
+                        purchase_price=80000,
+                        buyer_name="Test",
+                        buyer_email="test@condosmart.com"
+                    )
+                    db.add(test_license)
+                    db.commit()
+                    db.refresh(test_license)
+                    logger.info("✅ Licencia de prueba creada")
+                
+                # Asociar licencia al condominio
+                if USE_SQLITE:
+                    condominium.license_id = str(test_license.id) if test_license.id else None
+                else:
+                    condominium.license_id = test_license.id
+                db.commit()
+                logger.info("✅ Licencia de prueba activada para el condominio existente")
             return
         
         logger.info("🔄 Inicializando usuarios de prueba...")
@@ -63,29 +98,34 @@ def initialize_test_users():
             db.refresh(condominium)
             logger.info("✅ Condominio de prueba creado")
         
-        # 1.5. Crear y activar licencia de prueba para el condominio
+        # 1.5. Crear y activar licencia de prueba para el condominio (si no tiene)
         from app.models import License
         from datetime import datetime
         
         # Verificar si el condominio ya tiene licencia
         if not condominium.license_id:
-            # Crear licencia de prueba
-            license_id = str(uuid.uuid4()) if USE_SQLITE else uuid.uuid4()
-            test_license = License(
-                id=license_id,
-                code="CS-TEST-0000-0000",
-                package_type="premium",
-                max_units=None,  # Ilimitado
-                max_users=None,  # Ilimitado
-                activated=True,
-                activated_at=datetime.utcnow(),
-                purchase_price=80000,
-                buyer_name="Test",
-                buyer_email="test@condosmart.com"
-            )
-            db.add(test_license)
-            db.commit()
-            db.refresh(test_license)
+            # Verificar si ya existe una licencia de prueba
+            test_license = db.query(License).filter(License.code == "CS-TEST-0000-0000").first()
+            
+            if not test_license:
+                # Crear licencia de prueba
+                license_id = str(uuid.uuid4()) if USE_SQLITE else uuid.uuid4()
+                test_license = License(
+                    id=license_id,
+                    code="CS-TEST-0000-0000",
+                    package_type="premium",
+                    max_units=None,  # Ilimitado
+                    max_users=None,  # Ilimitado
+                    activated=True,
+                    activated_at=datetime.utcnow(),
+                    purchase_price=80000,
+                    buyer_name="Test",
+                    buyer_email="test@condosmart.com"
+                )
+                db.add(test_license)
+                db.commit()
+                db.refresh(test_license)
+                logger.info("✅ Licencia de prueba creada")
             
             # Asociar licencia al condominio
             if USE_SQLITE:
@@ -93,7 +133,7 @@ def initialize_test_users():
             else:
                 condominium.license_id = test_license.id
             db.commit()
-            logger.info("✅ Licencia de prueba creada y activada para el condominio")
+            logger.info("✅ Licencia de prueba activada para el condominio")
         
         # 2. Crear unidad de prueba
         unit = db.query(Unit).first()
