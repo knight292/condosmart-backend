@@ -5,6 +5,7 @@ from datetime import datetime
 
 from app.db import get_db
 from app.models import Reservation, User
+from app.models.uuid_helper import USE_SQLITE
 from app.schemas.reservation import ReservationCreate, ReservationResponse
 from app.auth import get_current_user
 
@@ -28,8 +29,17 @@ def create_reservation(
             detail="End time must be after start time"
         )
     
+    # Convertir IDs a string si es SQLite
+    condo_id = str(current_user.condominium_id) if (USE_SQLITE and current_user.condominium_id) else current_user.condominium_id
+    user_id = str(current_user.id) if (USE_SQLITE and current_user.id) else current_user.id
+    unit_id = None
+    if reservation_data.unit_id:
+        unit_id = str(reservation_data.unit_id) if USE_SQLITE else reservation_data.unit_id
+    elif current_user.unit_id:
+        unit_id = str(current_user.unit_id) if USE_SQLITE else current_user.unit_id
+    
     conflicting = db.query(Reservation).filter(
-        Reservation.condominium_id == current_user.condominium_id,
+        Reservation.condominium_id == condo_id,
         Reservation.facility_type == reservation_data.facility_type,
         Reservation.status == "confirmed",
         Reservation.start_time < reservation_data.end_time,
@@ -43,9 +53,9 @@ def create_reservation(
         )
     
     new_reservation = Reservation(
-        condominium_id=current_user.condominium_id,
-        user_id=current_user.id,
-        unit_id=reservation_data.unit_id or current_user.unit_id,
+        condominium_id=condo_id,
+        user_id=user_id,
+        unit_id=unit_id,
         facility_type=reservation_data.facility_type,
         start_time=reservation_data.start_time,
         end_time=reservation_data.end_time,
@@ -64,10 +74,20 @@ def get_reservations(
 ):
     query = db.query(Reservation)
     
+    # Convertir IDs a string si es SQLite
+    if USE_SQLITE:
+        condo_id = str(current_user.condominium_id) if current_user.condominium_id else None
+        user_id = str(current_user.id) if current_user.id else None
+    else:
+        condo_id = current_user.condominium_id
+        user_id = current_user.id
+    
     if current_user.role == "resident":
-        query = query.filter(Reservation.user_id == current_user.id)
+        if user_id:
+            query = query.filter(Reservation.user_id == user_id)
     elif current_user.role in ["admin", "super_admin"]:
-        query = query.filter(Reservation.condominium_id == current_user.condominium_id)
+        if condo_id:
+            query = query.filter(Reservation.condominium_id == condo_id)
     
     if facility_type:
         query = query.filter(Reservation.facility_type == facility_type)
@@ -92,8 +112,11 @@ def get_availability(
     start_of_day = target_date.replace(hour=0, minute=0, second=0)
     end_of_day = target_date.replace(hour=23, minute=59, second=59)
     
+    # Convertir ID a string si es SQLite
+    condo_id = str(current_user.condominium_id) if (USE_SQLITE and current_user.condominium_id) else current_user.condominium_id
+    
     reservations = db.query(Reservation).filter(
-        Reservation.condominium_id == current_user.condominium_id,
+        Reservation.condominium_id == condo_id,
         Reservation.facility_type == facility_type,
         Reservation.status == "confirmed",
         Reservation.start_time >= start_of_day,
@@ -123,7 +146,15 @@ def cancel_reservation(
             detail="Reservation not found"
         )
     
-    if current_user.role == "resident" and reservation.user_id != current_user.id:
+    # Convertir IDs a string si es SQLite para comparación
+    if USE_SQLITE:
+        user_id = str(current_user.id) if current_user.id else None
+        reservation_user_id = str(reservation.user_id) if reservation.user_id else None
+    else:
+        user_id = current_user.id
+        reservation_user_id = reservation.user_id
+    
+    if current_user.role == "resident" and reservation_user_id != user_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized"

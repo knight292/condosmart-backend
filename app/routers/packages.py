@@ -6,6 +6,7 @@ from uuid import UUID
 
 from app.db import get_db
 from app.models import Package, User
+from app.models.uuid_helper import USE_SQLITE
 from app.schemas.package import PackageCreate, PackageUpdate, PackageResponse
 from app.auth import get_current_user
 
@@ -30,18 +31,36 @@ def create_package(
             detail="User must belong to a condominium"
         )
     
+    # Convertir IDs a string si es SQLite
+    if USE_SQLITE:
+        condo_id = str(current_user.condominium_id) if current_user.condominium_id else None
+        user_id = str(current_user.id) if current_user.id else None
+        resident_id = str(package_data.resident_id) if package_data.resident_id else None
+    else:
+        condo_id = current_user.condominium_id
+        user_id = current_user.id
+        resident_id = package_data.resident_id
+    
     # Verificar que el residente pertenece al mismo condominio
-    resident = db.query(User).filter(User.id == package_data.resident_id).first()
-    if not resident or resident.condominium_id != current_user.condominium_id:
+    resident = db.query(User).filter(User.id == resident_id).first()
+    if not resident:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Resident not found or does not belong to this condominium"
+            detail="Resident not found"
+        )
+    
+    # Comparar condominium_id
+    resident_condo_id = str(resident.condominium_id) if (USE_SQLITE and resident.condominium_id) else resident.condominium_id
+    if resident_condo_id != condo_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Resident does not belong to this condominium"
         )
     
     new_package = Package(
-        condominium_id=current_user.condominium_id,
-        resident_id=package_data.resident_id,
-        received_by_id=current_user.id,
+        condominium_id=condo_id,
+        resident_id=resident_id,
+        received_by_id=user_id,
         carrier=package_data.carrier,
         tracking_number=package_data.tracking_number,
         description=package_data.description,
@@ -82,13 +101,21 @@ def get_packages(
             detail="User must belong to a condominium"
         )
     
+    # Convertir IDs a string si es SQLite
+    if USE_SQLITE:
+        condo_id = str(current_user.condominium_id) if current_user.condominium_id else None
+        user_id = str(current_user.id) if current_user.id else None
+    else:
+        condo_id = current_user.condominium_id
+        user_id = current_user.id
+    
     query = db.query(Package).filter(
-        Package.condominium_id == current_user.condominium_id
+        Package.condominium_id == condo_id
     )
     
     # Los residentes solo ven sus propios paquetes
     if current_user.role == "resident":
-        query = query.filter(Package.resident_id == current_user.id)
+        query = query.filter(Package.resident_id == user_id)
     
     # Filtrar por estado si se proporciona
     if status_filter:
@@ -98,8 +125,16 @@ def get_packages(
     
     results = []
     for package in packages:
-        resident = db.query(User).filter(User.id == package.resident_id).first()
-        received_by = db.query(User).filter(User.id == package.received_by_id).first() if package.received_by_id else None
+        # Convertir IDs para las queries si es SQLite
+        if USE_SQLITE:
+            resident_id = str(package.resident_id) if package.resident_id else None
+            received_by_id = str(package.received_by_id) if package.received_by_id else None
+        else:
+            resident_id = package.resident_id
+            received_by_id = package.received_by_id
+        
+        resident = db.query(User).filter(User.id == resident_id).first() if resident_id else None
+        received_by = db.query(User).filter(User.id == received_by_id).first() if received_by_id else None
         
         results.append(PackageResponse(
             id=package.id,
@@ -135,21 +170,41 @@ def get_package(
             detail="Package not found"
         )
     
-    if package.condominium_id != current_user.condominium_id:
+    # Convertir IDs a string si es SQLite para comparaciones
+    if USE_SQLITE:
+        condo_id = str(current_user.condominium_id) if current_user.condominium_id else None
+        user_id = str(current_user.id) if current_user.id else None
+        package_condo_id = str(package.condominium_id) if package.condominium_id else None
+        package_resident_id = str(package.resident_id) if package.resident_id else None
+    else:
+        condo_id = current_user.condominium_id
+        user_id = current_user.id
+        package_condo_id = package.condominium_id
+        package_resident_id = package.resident_id
+    
+    if package_condo_id != condo_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Package does not belong to your condominium"
         )
     
     # Los residentes solo pueden ver sus propios paquetes
-    if current_user.role == "resident" and package.resident_id != current_user.id:
+    if current_user.role == "resident" and package_resident_id != user_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You can only view your own packages"
         )
     
-    resident = db.query(User).filter(User.id == package.resident_id).first()
-    received_by = db.query(User).filter(User.id == package.received_by_id).first() if package.received_by_id else None
+    # Convertir IDs para las queries si es SQLite
+    if USE_SQLITE:
+        resident_id = str(package.resident_id) if package.resident_id else None
+        received_by_id = str(package.received_by_id) if package.received_by_id else None
+    else:
+        resident_id = package.resident_id
+        received_by_id = package.received_by_id
+    
+    resident = db.query(User).filter(User.id == resident_id).first() if resident_id else None
+    received_by = db.query(User).filter(User.id == received_by_id).first() if received_by_id else None
     
     return PackageResponse(
         id=package.id,
@@ -184,7 +239,19 @@ def update_package(
             detail="Package not found"
         )
     
-    if package.condominium_id != current_user.condominium_id:
+    # Convertir IDs a string si es SQLite para comparaciones
+    if USE_SQLITE:
+        condo_id = str(current_user.condominium_id) if current_user.condominium_id else None
+        user_id = str(current_user.id) if current_user.id else None
+        package_condo_id = str(package.condominium_id) if package.condominium_id else None
+        package_resident_id = str(package.resident_id) if package.resident_id else None
+    else:
+        condo_id = current_user.condominium_id
+        user_id = current_user.id
+        package_condo_id = package.condominium_id
+        package_resident_id = package.resident_id
+    
+    if package_condo_id != condo_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Package does not belong to your condominium"
@@ -192,7 +259,7 @@ def update_package(
     
     # Los residentes solo pueden marcar sus paquetes como recogidos
     if current_user.role == "resident":
-        if package.resident_id != current_user.id:
+        if package_resident_id != user_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You can only update your own packages"
@@ -216,8 +283,16 @@ def update_package(
     db.commit()
     db.refresh(package)
     
-    resident = db.query(User).filter(User.id == package.resident_id).first()
-    received_by = db.query(User).filter(User.id == package.received_by_id).first() if package.received_by_id else None
+    # Convertir IDs para las queries si es SQLite
+    if USE_SQLITE:
+        resident_id = str(package.resident_id) if package.resident_id else None
+        received_by_id = str(package.received_by_id) if package.received_by_id else None
+    else:
+        resident_id = package.resident_id
+        received_by_id = package.received_by_id
+    
+    resident = db.query(User).filter(User.id == resident_id).first() if resident_id else None
+    received_by = db.query(User).filter(User.id == received_by_id).first() if received_by_id else None
     
     return PackageResponse(
         id=package.id,
@@ -258,7 +333,15 @@ def delete_package(
             detail="Package not found"
         )
     
-    if package.condominium_id != current_user.condominium_id:
+    # Convertir IDs a string si es SQLite para comparaciones
+    if USE_SQLITE:
+        condo_id = str(current_user.condominium_id) if current_user.condominium_id else None
+        package_condo_id = str(package.condominium_id) if package.condominium_id else None
+    else:
+        condo_id = current_user.condominium_id
+        package_condo_id = package.condominium_id
+    
+    if package_condo_id != condo_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Package does not belong to your condominium"

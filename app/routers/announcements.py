@@ -4,6 +4,7 @@ from typing import List
 
 from app.db import get_db
 from app.models import Announcement, User
+from app.models.uuid_helper import USE_SQLITE
 from app.schemas.announcement import AnnouncementCreate, AnnouncementResponse
 from app.auth import get_current_user
 
@@ -27,9 +28,13 @@ def create_announcement(
             detail="User must belong to a condominium"
         )
     
+    # Convertir IDs a string si es SQLite
+    condo_id = str(current_user.condominium_id) if (USE_SQLITE and current_user.condominium_id) else current_user.condominium_id
+    user_id = str(current_user.id) if (USE_SQLITE and current_user.id) else current_user.id
+    
     new_announcement = Announcement(
-        condominium_id=current_user.condominium_id,
-        created_by=current_user.id,
+        condominium_id=condo_id,
+        created_by=user_id,
         title=announcement_data.title,
         content=announcement_data.content,
         category=announcement_data.category,
@@ -54,16 +59,24 @@ def get_announcements(
             detail="User must belong to a condominium"
         )
     
+    # Convertir IDs a string si es SQLite
+    condo_id = str(current_user.condominium_id) if (USE_SQLITE and current_user.condominium_id) else current_user.condominium_id
+    unit_id = str(current_user.unit_id) if (USE_SQLITE and current_user.unit_id) else current_user.unit_id
+    
     query = db.query(Announcement).filter(
-        Announcement.condominium_id == current_user.condominium_id
+        Announcement.condominium_id == condo_id
     )
     
     if current_user.role == "resident":
-        query = query.filter(
-            (Announcement.target_audience == "all") |
-            (Announcement.target_tower == current_user.unit.tower if current_user.unit else False) |
-            (Announcement.target_unit_id == current_user.unit_id)
-        )
+        # Construir filtros para residentes
+        filters = [Announcement.target_audience == "all"]
+        if current_user.unit and current_user.unit.tower:
+            filters.append(Announcement.target_tower == current_user.unit.tower)
+        if unit_id:
+            filters.append(Announcement.target_unit_id == unit_id)
+        
+        from sqlalchemy import or_
+        query = query.filter(or_(*filters))
     
     announcements = query.order_by(Announcement.created_at.desc()).all()
     return announcements
@@ -82,7 +95,15 @@ def get_announcement(
             detail="Announcement not found"
         )
     
-    if announcement.condominium_id != current_user.condominium_id:
+    # Convertir IDs a string si es SQLite para comparación
+    if USE_SQLITE:
+        condo_id = str(current_user.condominium_id) if current_user.condominium_id else None
+        announcement_condo_id = str(announcement.condominium_id) if announcement.condominium_id else None
+    else:
+        condo_id = current_user.condominium_id
+        announcement_condo_id = announcement.condominium_id
+    
+    if announcement_condo_id != condo_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized"

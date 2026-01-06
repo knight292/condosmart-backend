@@ -9,6 +9,7 @@ import uuid as uuid_lib
 
 from app.db import get_db
 from app.models import Visit, User
+from app.models.uuid_helper import USE_SQLITE
 from app.schemas.visit import VisitCreate, VisitResponse, VisitScan
 from app.auth import get_current_user
 
@@ -38,9 +39,13 @@ def generate_visit(
     
     qr_code_value = str(uuid_lib.uuid4())
     
+    # Convertir IDs a string si es SQLite
+    condo_id = str(current_user.condominium_id) if (USE_SQLITE and current_user.condominium_id) else current_user.condominium_id
+    unit_id = str(current_user.unit_id) if (USE_SQLITE and current_user.unit_id) else current_user.unit_id
+    
     new_visit = Visit(
-        condominium_id=current_user.condominium_id,
-        unit_id=current_user.unit_id,
+        condominium_id=condo_id,
+        unit_id=unit_id,
         visitor_name=visit_data.visitor_name,
         visitor_phone=visit_data.visitor_phone,
         qr_code=qr_code_value,
@@ -59,9 +64,12 @@ def get_qr_code(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    # Convertir IDs a string si es SQLite
+    condo_id = str(current_user.condominium_id) if (USE_SQLITE and current_user.condominium_id) else current_user.condominium_id
+    
     visit = db.query(Visit).filter(
         Visit.id == visit_id,
-        Visit.condominium_id == current_user.condominium_id
+        Visit.condominium_id == condo_id
     ).first()
     
     if not visit:
@@ -105,10 +113,13 @@ def scan_visit(
             detail="QR code expired"
         )
     
+    # Convertir ID a string si es SQLite
+    user_id = str(current_user.id) if (USE_SQLITE and current_user.id) else current_user.id
+    
     if visit.status == "pending":
         visit.status = "checked_in"
         visit.entry_time = datetime.utcnow()
-        visit.scanned_by = current_user.id
+        visit.scanned_by = user_id
     elif visit.status == "checked_in":
         visit.status = "checked_out"
         visit.exit_time = datetime.utcnow()
@@ -124,10 +135,20 @@ def get_visits(
 ):
     query = db.query(Visit)
     
+    # Convertir IDs a string si es SQLite
+    if USE_SQLITE:
+        condo_id = str(current_user.condominium_id) if current_user.condominium_id else None
+        unit_id = str(current_user.unit_id) if current_user.unit_id else None
+    else:
+        condo_id = current_user.condominium_id
+        unit_id = current_user.unit_id
+    
     if current_user.role == "resident":
-        query = query.filter(Visit.unit_id == current_user.unit_id)
+        if unit_id:
+            query = query.filter(Visit.unit_id == unit_id)
     elif current_user.role in ["admin", "guard"]:
-        query = query.filter(Visit.condominium_id == current_user.condominium_id)
+        if condo_id:
+            query = query.filter(Visit.condominium_id == condo_id)
     
     visits = query.order_by(Visit.created_at.desc()).all()
     return visits

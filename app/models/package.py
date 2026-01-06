@@ -1,8 +1,7 @@
 from sqlalchemy import Column, String, Text, ForeignKey, DateTime, Boolean
-from app.models.uuid_helper import UUID
+from app.models.uuid_helper import UUID, generate_uuid
 
 from sqlalchemy.orm import relationship
-import uuid
 from datetime import datetime
 
 from app.db import Base
@@ -10,7 +9,7 @@ from app.db import Base
 class Package(Base):
     __tablename__ = "packages"
 
-    id = Column(UUID, primary_key=True, default=uuid.uuid4)
+    id = Column(UUID, primary_key=True, default=generate_uuid)
     condominium_id = Column(UUID, ForeignKey("condominiums.id"), nullable=False)
     resident_id = Column(UUID, ForeignKey("users.id"), nullable=False)
     received_by_id = Column(UUID, ForeignKey("users.id"), nullable=True)  # Guardia o admin que recibió
