@@ -30,7 +30,24 @@ from app.models import (
 # Crear todas las tablas (incluyendo payment_methods)
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="CondoSmart API", version="1.0.0", redirect_slashes=False)
+app = FastAPI(title="CondoSmart API", version="1.0.0")
+
+# Middleware para preservar headers de autorización en redirects
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import RedirectResponse
+
+class PreserveAuthMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        # Si es un redirect 307 y tenemos un header de autorización, preservarlo
+        if isinstance(response, RedirectResponse) and response.status_code == 307:
+            auth_header = request.headers.get("Authorization")
+            if auth_header:
+                response.headers["Authorization"] = auth_header
+        return response
+
+app.add_middleware(PreserveAuthMiddleware)
 
 # Manejo global de excepciones
 @app.exception_handler(HTTPException)
