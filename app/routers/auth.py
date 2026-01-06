@@ -3,6 +3,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from app.db import get_db
 from app.models import User, Condominium
+from app.models.uuid_helper import USE_SQLITE
 from app.schemas.auth import Token, UserCreate, UserResponse
 from app.auth import (
     verify_password,
@@ -16,6 +17,7 @@ from datetime import timedelta
 router = APIRouter()
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/register/", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 def register(user_data: UserCreate, db: Session = Depends(get_db)):
     # Verificar si el usuario ya existe
     existing_user = db.query(User).filter(User.email == user_data.email).first()
@@ -25,6 +27,36 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)):
             detail="Email already registered"
         )
     
+    # Convertir IDs a string si es SQLite
+    condo_id = None
+    unit_id = None
+    
+    if user_data.condominium_id:
+        condo_id = str(user_data.condominium_id) if (USE_SQLITE and user_data.condominium_id) else user_data.condominium_id
+        
+        # Verificar que el condominio existe y tiene licencia activa
+        if USE_SQLITE:
+            condo_search_id = str(user_data.condominium_id) if user_data.condominium_id else None
+        else:
+            condo_search_id = user_data.condominium_id
+        
+        condominium = db.query(Condominium).filter(Condominium.id == condo_search_id).first() if condo_search_id else None
+        if not condominium:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Condominium not found"
+            )
+        
+        # Verificar que el condominio tiene licencia activa
+        if not condominium.license_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="El condominio no tiene una licencia activa"
+            )
+    
+    if user_data.unit_id:
+        unit_id = str(user_data.unit_id) if (USE_SQLITE and user_data.unit_id) else user_data.unit_id
+    
     hashed_password = get_password_hash(user_data.password)
     new_user = User(
         email=user_data.email,
@@ -32,8 +64,8 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)):
         full_name=user_data.full_name,
         phone=user_data.phone,
         role=user_data.role or "resident",
-        condominium_id=user_data.condominium_id,
-        unit_id=user_data.unit_id,
+        condominium_id=condo_id,
+        unit_id=unit_id,
         is_active=True
     )
     db.add(new_user)
