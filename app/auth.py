@@ -42,6 +42,10 @@ def get_current_user(
     db: Session = Depends(get_db),
     x_condominium_id: Optional[str] = Header(None)  # Header opcional para owners
 ) -> User:
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info("get_current_user called")
+    
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -49,11 +53,18 @@ def get_current_user(
     )
     try:
         token = credentials.credentials
+        logger.info(f"Token received: {token[:20]}...")
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id: str = payload.get("sub")
+        logger.info(f"User ID from token: {user_id}")
         if user_id is None:
+            logger.error("User ID is None in token")
             raise credentials_exception
-    except JWTError:
+    except JWTError as e:
+        logger.error(f"JWT Error: {str(e)}")
+        raise credentials_exception
+    except Exception as e:
+        logger.error(f"Unexpected error in get_current_user: {str(e)}")
         raise credentials_exception
     
     # Convertir el string a UUID si es necesario

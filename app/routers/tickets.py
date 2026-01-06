@@ -83,8 +83,10 @@ def get_tickets(
 ):
     import logging
     logger = logging.getLogger(__name__)
+    logger.info("get_tickets called")
     
-    query = db.query(Ticket)
+    try:
+        query = db.query(Ticket)
     
     # Convertir IDs a string si es SQLite para las comparaciones
     if USE_SQLITE:
@@ -122,12 +124,15 @@ def get_tickets(
     if status_filter:
         query = query.filter(Ticket.status == status_filter)
     
-    try:
         tickets = query.order_by(Ticket.created_at.desc()).all()
         logger.info(f"Found {len(tickets)} tickets")
         return tickets
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error querying tickets: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error retrieving tickets: {str(e)}"
