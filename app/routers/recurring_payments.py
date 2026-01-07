@@ -65,7 +65,7 @@ def create_recurring_payment(
     db: Session = Depends(get_db)
 ):
     """Crear un pago recurrente"""
-    if current_user.role not in ["admin", "super_admin", "owner"]:
+    if current_user.role not in ["admin", "owner"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo administradores pueden crear pagos recurrentes"
@@ -248,7 +248,14 @@ def get_recurring_payments(
     db: Session = Depends(get_db)
 ):
     """Obtener todos los pagos recurrentes del condominio"""
-    if current_user.role not in ["admin", "super_admin", "owner", "resident"]:
+    # Super_admin no debe acceder a pagos recurrentes de condominios específicos
+    if current_user.role == "super_admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Super admin cannot access condominium recurring payments"
+        )
+    
+    if current_user.role not in ["admin", "owner", "resident"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="No tienes permisos para ver pagos recurrentes"
@@ -314,7 +321,7 @@ def update_recurring_payment(
     db: Session = Depends(get_db)
 ):
     """Actualizar un pago recurrente"""
-    if current_user.role not in ["admin", "super_admin", "owner"]:
+    if current_user.role not in ["admin", "owner"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo administradores pueden actualizar pagos recurrentes"
@@ -404,7 +411,7 @@ def delete_recurring_payment(
     db: Session = Depends(get_db)
 ):
     """Eliminar un pago recurrente"""
-    if current_user.role not in ["admin", "super_admin", "owner"]:
+    if current_user.role not in ["admin", "owner"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo administradores pueden eliminar pagos recurrentes"
@@ -442,7 +449,7 @@ def generate_payments_from_recurring(
     db: Session = Depends(get_db)
 ):
     """Generar pagos desde un pago recurrente (ejecutar manualmente)"""
-    if current_user.role not in ["admin", "super_admin", "owner"]:
+    if current_user.role not in ["admin", "owner"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo administradores pueden generar pagos"
@@ -554,7 +561,7 @@ def generate_all_pending_payments(
     db: Session = Depends(get_db)
 ):
     """Generar todos los pagos pendientes de todos los pagos recurrentes activos"""
-    if current_user.role not in ["admin", "super_admin", "owner"]:
+    if current_user.role not in ["admin", "owner"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo administradores pueden generar pagos"

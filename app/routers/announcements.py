@@ -17,7 +17,7 @@ def create_announcement(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    if current_user.role not in ["admin", "super_admin"]:
+    if current_user.role != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only admins can create announcements"
@@ -55,6 +55,13 @@ def get_announcements(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    # Super_admin no debe acceder a avisos de condominios
+    if current_user.role == "super_admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Super admin cannot access condominium announcements"
+        )
+    
     if not current_user.condominium_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -89,6 +96,13 @@ def get_announcement(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    # Super_admin no debe acceder a avisos de condominios
+    if current_user.role == "super_admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Super admin cannot access condominium announcements"
+        )
+    
     announcement = db.query(Announcement).filter(Announcement.id == announcement_id).first()
     
     if not announcement:

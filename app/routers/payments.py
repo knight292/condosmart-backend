@@ -31,7 +31,7 @@ def create_payment(
     target_user_id = None
     target_user = None
     
-    if current_user.role in ["admin", "super_admin", "owner"]:
+    if current_user.role in ["admin", "owner"]:
         # Administradores pueden crear pagos para residentes específicos
         if payment_data.user_id:
             # Si se especifica un user_id, crear para ese usuario
@@ -167,7 +167,7 @@ def get_payments(
     elif current_user.role == "resident":
         if user_id:
             query = query.filter(Payment.user_id == user_id)
-    elif current_user.role in ["admin", "super_admin", "owner"]:
+    elif current_user.role in ["admin", "owner"]:
         if condo_id:
             query = query.filter(Payment.condominium_id == condo_id)
     

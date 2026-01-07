@@ -20,8 +20,15 @@ def get_users(
     db: Session = Depends(get_db)
 ):
     """Obtener lista de usuarios del condominio"""
-    # Permitir a admins, super_admins, owners y guards (para búsqueda de residentes)
-    if current_user.role not in ["admin", "super_admin", "owner", "guard"]:
+    # Super_admin no debe acceder a usuarios de condominios específicos
+    if current_user.role == "super_admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Super admin cannot access condominium users"
+        )
+    
+    # Permitir a admins, owners y guards (para búsqueda de residentes)
+    if current_user.role not in ["admin", "owner", "guard"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only admins, owners, or guards can view users"
@@ -67,7 +74,14 @@ def create_user(
     db: Session = Depends(get_db)
 ):
     """Crear un nuevo usuario (solo admins)"""
-    if current_user.role not in ["admin", "super_admin", "owner"]:
+    # Super_admin no debe crear usuarios de condominios específicos
+    if current_user.role == "super_admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Super admin cannot create condominium users"
+        )
+    
+    if current_user.role not in ["admin", "owner"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only admins can create users"
@@ -176,7 +190,14 @@ def update_user(
     db: Session = Depends(get_db)
 ):
     """Actualizar un usuario (solo admins)"""
-    if current_user.role not in ["admin", "super_admin", "owner"]:
+    # Super_admin no debe crear usuarios de condominios específicos
+    if current_user.role == "super_admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Super admin cannot create condominium users"
+        )
+    
+    if current_user.role not in ["admin", "owner"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only admins can update users"
@@ -295,7 +316,14 @@ def delete_user(
     db: Session = Depends(get_db)
 ):
     """Eliminar un usuario (solo admins)"""
-    if current_user.role not in ["admin", "super_admin", "owner"]:
+    # Super_admin no debe crear usuarios de condominios específicos
+    if current_user.role == "super_admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Super admin cannot create condominium users"
+        )
+    
+    if current_user.role not in ["admin", "owner"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only admins can delete users"

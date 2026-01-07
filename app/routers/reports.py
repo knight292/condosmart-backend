@@ -21,7 +21,14 @@ def export_shifts_pdf(
     db: Session = Depends(get_db)
 ):
     """Exporta turnos a PDF"""
-    if current_user.role not in ["admin", "super_admin", "owner"]:
+    # Super_admin no debe acceder a reportes de condominios específicos
+    if current_user.role == "super_admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Super admin cannot access condominium reports"
+        )
+    
+    if current_user.role not in ["admin", "owner"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only admins can export reports"
@@ -71,7 +78,14 @@ def export_shifts_excel(
     db: Session = Depends(get_db)
 ):
     """Exporta turnos a Excel (CSV)"""
-    if current_user.role not in ["admin", "super_admin", "owner"]:
+    # Super_admin no debe acceder a reportes de condominios específicos
+    if current_user.role == "super_admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Super admin cannot access condominium reports"
+        )
+    
+    if current_user.role not in ["admin", "owner"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only admins can export reports"

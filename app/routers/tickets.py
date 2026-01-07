@@ -112,7 +112,7 @@ def get_tickets(
             else:
                 # Si no tiene user_id, devolver lista vacía
                 return []
-        elif current_user.role in ["admin", "super_admin"]:
+        elif current_user.role == "admin":
             if condo_id:
                 query = query.filter(Ticket.condominium_id == condo_id)
             else:
@@ -225,7 +225,7 @@ def update_ticket(
             detail="Ticket not found"
         )
     
-    if current_user.role not in ["admin", "super_admin"]:
+    if current_user.role != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only admins can update tickets"

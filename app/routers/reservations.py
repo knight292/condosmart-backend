@@ -112,7 +112,7 @@ def get_reservations(
     if current_user.role == "resident":
         if user_id:
             query = query.filter(Reservation.user_id == user_id)
-    elif current_user.role in ["admin", "super_admin"]:
+    elif current_user.role == "admin":
         if condo_id:
             query = query.filter(Reservation.condominium_id == condo_id)
     

@@ -17,7 +17,7 @@ def create_template(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    if current_user.role not in ["admin", "super_admin", "owner"]:
+    if current_user.role not in ["admin", "owner"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only admins can create shift templates"
@@ -67,7 +67,7 @@ def apply_template(
     start_date_str = body.get("start_date")
     weeks = body.get("weeks", 1)
     """Aplica una plantilla de horarios creando turnos para las semanas especificadas"""
-    if current_user.role not in ["admin", "super_admin", "owner"]:
+    if current_user.role not in ["admin", "owner"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only admins can apply templates"

@@ -18,7 +18,14 @@ def get_attendance_statistics(
     db: Session = Depends(get_db)
 ):
     """Obtiene estadísticas de asistencia"""
-    if current_user.role not in ["admin", "super_admin", "owner"]:
+    # Super_admin no debe acceder a estadísticas de condominios específicos
+    if current_user.role == "super_admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Super admin cannot access condominium statistics"
+        )
+    
+    if current_user.role not in ["admin", "owner"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only admins can view statistics"
@@ -150,7 +157,14 @@ def get_compliance_statistics(
     db: Session = Depends(get_db)
 ):
     """Obtiene estadísticas de cumplimiento"""
-    if current_user.role not in ["admin", "super_admin", "owner"]:
+    # Super_admin no debe acceder a estadísticas de condominios específicos
+    if current_user.role == "super_admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Super admin cannot access condominium statistics"
+        )
+    
+    if current_user.role not in ["admin", "owner"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only admins can view statistics"

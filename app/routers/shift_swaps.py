@@ -155,7 +155,7 @@ def get_swap_requests(
             (ShiftSwap.requested_by == user_id) |
             (ShiftSwap.requested_to == user_id)
         )
-    elif current_user.role in ["admin", "super_admin", "owner"]:
+    elif current_user.role in ["admin", "owner"]:
         # Admins ven todas las solicitudes del condominio
         # Obtener IDs de turnos del condominio
         condo_shifts = db.query(GuardShift.id).filter(
@@ -280,7 +280,7 @@ def update_swap_request(
     
     # Solo admins pueden aprobar/rechazar, o el guardia puede cancelar su propia solicitud
     if swap_update.status in ["approved", "rejected"]:
-        if current_user.role not in ["admin", "super_admin", "owner"]:
+        if current_user.role not in ["admin", "owner"]:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Only admins can approve or reject swap requests"

@@ -40,7 +40,7 @@ def create_guard_shift(
     db: Session = Depends(get_db)
 ):
     # Permitir que admins asignen turnos a guardias, o guardias se auto-asignen
-    if current_user.role not in ["admin", "super_admin", "owner", "guard"]:
+    if current_user.role not in ["admin", "owner", "guard"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only admins or guards can create shifts"
@@ -64,7 +64,7 @@ def create_guard_shift(
         guard_search_id = guard_id
     
     # Si un admin está asignando a otro guardia, verificar que el guardia pertenece al mismo condominio
-    if current_user.role in ["admin", "super_admin", "owner"] and shift_data.guard_id:
+    if current_user.role in ["admin", "owner"] and shift_data.guard_id:
         assigned_guard = db.query(User).filter(
             User.id == guard_search_id,
             User.condominium_id == condo_id,
@@ -117,7 +117,7 @@ def create_guard_shift(
     db.refresh(new_shift)
     
     # Notificación: Si un admin asignó el turno, notificar al guardia
-    if current_user.role in ["admin", "super_admin", "owner"] and guard_search_id != str(current_user.id) if USE_SQLITE else guard_id != current_user.id:
+    if current_user.role in ["admin", "owner"] and guard_search_id != str(current_user.id) if USE_SQLITE else guard_id != current_user.id:
         assigned_guard = db.query(User).filter(User.id == guard_search_id).first()
         if assigned_guard:
             shift_type_label = {
@@ -182,7 +182,7 @@ def get_available_guards(
     db: Session = Depends(get_db)
 ):
     """Obtiene lista de guardias disponibles para un turno específico"""
-    if current_user.role not in ["admin", "super_admin", "owner"]:
+    if current_user.role not in ["admin", "owner"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only admins can check available guards"

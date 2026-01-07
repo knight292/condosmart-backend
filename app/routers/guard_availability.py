@@ -119,7 +119,7 @@ def get_availabilities(
     # Si es guardia, solo ver su propia disponibilidad
     if current_user.role == "guard":
         query = query.filter(GuardAvailability.guard_id == user_id)
-    elif guard_id and current_user.role in ["admin", "super_admin", "owner"]:
+    elif guard_id and current_user.role in ["admin", "owner"]:
         # Admin puede ver disponibilidad de un guardia específico
         if USE_SQLITE:
             guard_search_id = guard_id

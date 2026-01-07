@@ -19,7 +19,7 @@ def create_package(
     db: Session = Depends(get_db)
 ):
     # Solo admins, guards o super_admins pueden crear paquetes
-    if current_user.role not in ["admin", "guard", "super_admin"]:
+    if current_user.role not in ["admin", "guard"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only admins, guards, or super_admins can create packages"
@@ -320,7 +320,7 @@ def delete_package(
     db: Session = Depends(get_db)
 ):
     # Solo admins o super_admins pueden eliminar paquetes
-    if current_user.role not in ["admin", "super_admin"]:
+    if current_user.role != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only admins or super_admins can delete packages"

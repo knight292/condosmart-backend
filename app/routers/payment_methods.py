@@ -48,7 +48,7 @@ def create_payment_method(
     db: Session = Depends(get_db)
 ):
     """Crear un nuevo método de pago (solo administradores)"""
-    if current_user.role not in ["admin", "super_admin"]:
+    if current_user.role != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only administrators can create payment methods"
@@ -106,7 +106,7 @@ def update_payment_method(
     db: Session = Depends(get_db)
 ):
     """Actualizar un método de pago (solo administradores)"""
-    if current_user.role not in ["admin", "super_admin"]:
+    if current_user.role != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only administrators can update payment methods"
@@ -154,7 +154,7 @@ def delete_payment_method(
     db: Session = Depends(get_db)
 ):
     """Eliminar un método de pago (solo administradores)"""
-    if current_user.role not in ["admin", "super_admin"]:
+    if current_user.role != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only administrators can delete payment methods"
