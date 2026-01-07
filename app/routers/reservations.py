@@ -95,6 +95,14 @@ def get_reservations(
         query = query.filter(Reservation.facility_type == facility_type)
     
     reservations = query.order_by(Reservation.start_time.asc()).all()
+    
+    # Logging para debugging
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"📅 Devolviendo {len(reservations)} reservaciones para usuario {current_user.id}")
+    for res in reservations:
+        logger.info(f"   - {res.facility_type}: {res.start_time} (UTC: {res.start_time.isoformat() if hasattr(res.start_time, 'isoformat') else str(res.start_time)})")
+    
     return reservations
 
 @router.get("/availability")
