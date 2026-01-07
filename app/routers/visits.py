@@ -32,23 +32,40 @@ def generate_visit(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    import logging
+    logger = logging.getLogger(__name__)
+    
     if not current_user.condominium_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="User must belong to a condominium"
         )
     
+    # Log para debugging
+    logger.info(f"🔍 Visit create - user_id: {current_user.id}, user_unit_id: {current_user.unit_id}, request_unit_id: {visit_data.unit_id}")
+    
     # Usar unit_id del request si está disponible, sino del usuario
     unit_id_to_use = None
     if visit_data.unit_id:
         unit_id_to_use = str(visit_data.unit_id) if USE_SQLITE else visit_data.unit_id
+        logger.info(f"✅ Using unit_id from request: {unit_id_to_use}")
     elif current_user.unit_id:
         unit_id_to_use = str(current_user.unit_id) if (USE_SQLITE and current_user.unit_id) else current_user.unit_id
+        logger.info(f"✅ Using unit_id from user: {unit_id_to_use}")
+    else:
+        # Si no hay unit_id, intentar obtener la primera unidad del condominio del usuario
+        from app.models import Unit
+        condo_id = str(current_user.condominium_id) if (USE_SQLITE and current_user.condominium_id) else current_user.condominium_id
+        first_unit = db.query(Unit).filter(Unit.condominium_id == condo_id).first()
+        if first_unit:
+            unit_id_to_use = str(first_unit.id) if USE_SQLITE else first_unit.id
+            logger.info(f"✅ Using first unit from condominium: {unit_id_to_use}")
     
     if not unit_id_to_use:
+        logger.error(f"❌ No unit_id available for user {current_user.id}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User must belong to a unit or provide unit_id in request"
+            detail="User must belong to a unit or provide unit_id in request. Please contact an administrator to assign a unit."
         )
     
     qr_code_value = str(uuid_lib.uuid4())
