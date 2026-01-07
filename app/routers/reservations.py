@@ -34,13 +34,13 @@ def create_reservation(
     
     # Asegurar que las fechas estén en UTC (si vienen con timezone, convertirlas)
     if reservation_data.start_time.tzinfo is not None:
-        start_time_utc = reservation_data.start_time.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+        start_time_utc = reservation_data.start_time.astimezone(timezone.utc).replace(tzinfo=None)
     else:
         # Si es naive, asumir que ya está en UTC
         start_time_utc = reservation_data.start_time
     
     if reservation_data.end_time.tzinfo is not None:
-        end_time_utc = reservation_data.end_time.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+        end_time_utc = reservation_data.end_time.astimezone(timezone.utc).replace(tzinfo=None)
     else:
         end_time_utc = reservation_data.end_time
     
@@ -125,10 +125,35 @@ def get_reservations(
     import logging
     logger = logging.getLogger(__name__)
     logger.info(f"📅 Devolviendo {len(reservations)} reservaciones para usuario {current_user.id}")
-    for res in reservations:
-        logger.info(f"   - {res.facility_type}: {res.start_time} (UTC: {res.start_time.isoformat() if hasattr(res.start_time, 'isoformat') else str(res.start_time)})")
     
-    return reservations
+    # Convertir las fechas naive a UTC-aware antes de devolverlas
+    # Esto asegura que FastAPI las serialice con 'Z' al final
+    from datetime import timezone as tz
+    result = []
+    for res in reservations:
+        # Crear copias de las fechas con timezone UTC si son naive
+        start_time_utc = res.start_time.replace(tzinfo=tz.utc) if res.start_time.tzinfo is None else res.start_time
+        end_time_utc = res.end_time.replace(tzinfo=tz.utc) if res.end_time.tzinfo is None else res.end_time
+        created_at_utc = res.created_at.replace(tzinfo=tz.utc) if res.created_at.tzinfo is None else res.created_at
+        
+        logger.info(f"   - {res.facility_type}: {res.start_time} -> {start_time_utc.isoformat()}")
+        
+        # Crear un objeto de respuesta con fechas UTC-aware
+        from app.schemas.reservation import ReservationResponse
+        result.append(ReservationResponse(
+            id=res.id,
+            condominium_id=res.condominium_id,
+            user_id=res.user_id,
+            unit_id=res.unit_id,
+            facility_type=res.facility_type,
+            start_time=start_time_utc,
+            end_time=end_time_utc,
+            status=res.status,
+            cancellation_fee=res.cancellation_fee,
+            created_at=created_at_utc
+        ))
+    
+    return result
 
 @router.get("/availability")
 def get_availability(
