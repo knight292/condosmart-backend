@@ -7,6 +7,7 @@ class VisitCreate(BaseModel):
     visitor_name: str
     visitor_phone: Optional[str] = None
     valid_until: datetime
+    unit_id: Optional[UUID] = None
 
 class VisitScan(BaseModel):
     qr_code: str

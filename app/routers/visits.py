@@ -26,22 +26,36 @@ def generate_qr_code(data: str) -> str:
     return f"data:image/png;base64,{img_str}"
 
 @router.post("/generate", response_model=VisitResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/generate/", response_model=VisitResponse, status_code=status.HTTP_201_CREATED)
 def generate_visit(
     visit_data: VisitCreate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    if not current_user.condominium_id or not current_user.unit_id:
+    if not current_user.condominium_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User must belong to a condominium and unit"
+            detail="User must belong to a condominium"
+        )
+    
+    # Usar unit_id del request si está disponible, sino del usuario
+    unit_id_to_use = None
+    if visit_data.unit_id:
+        unit_id_to_use = str(visit_data.unit_id) if USE_SQLITE else visit_data.unit_id
+    elif current_user.unit_id:
+        unit_id_to_use = str(current_user.unit_id) if (USE_SQLITE and current_user.unit_id) else current_user.unit_id
+    
+    if not unit_id_to_use:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User must belong to a unit or provide unit_id in request"
         )
     
     qr_code_value = str(uuid_lib.uuid4())
     
     # Convertir IDs a string si es SQLite
     condo_id = str(current_user.condominium_id) if (USE_SQLITE and current_user.condominium_id) else current_user.condominium_id
-    unit_id = str(current_user.unit_id) if (USE_SQLITE and current_user.unit_id) else current_user.unit_id
+    unit_id = unit_id_to_use
     
     new_visit = Visit(
         condominium_id=condo_id,

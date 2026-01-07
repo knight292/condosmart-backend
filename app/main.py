@@ -239,7 +239,7 @@ try:
 except Exception as e:
     logger.warning(f"⚠️  No se pudieron inicializar usuarios de prueba: {str(e)}")
 
-app = FastAPI(title="CondoSmart API", version="1.0.0")
+app = FastAPI(title="CondoSmart API", version="1.0.0", redirect_slashes=False)
 
 # Manejo global de excepciones
 @app.exception_handler(HTTPException)

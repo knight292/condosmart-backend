@@ -11,6 +11,7 @@ from app.auth import get_current_user
 
 router = APIRouter()
 
+@router.post("", response_model=TicketResponse, status_code=status.HTTP_201_CREATED)
 @router.post("/", response_model=TicketResponse, status_code=status.HTTP_201_CREATED)
 def create_ticket(
     ticket_data: TicketCreate,
