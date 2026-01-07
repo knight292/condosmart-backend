@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.db import get_db
 from app.models import Reservation, User
@@ -18,13 +18,36 @@ def create_reservation(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    import logging
+    logger = logging.getLogger(__name__)
+    
     if not current_user.condominium_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="User must belong to a condominium"
         )
     
-    if reservation_data.start_time >= reservation_data.end_time:
+    # Logging de fechas recibidas
+    logger.info(f"📅 Creando reservación para usuario {current_user.id}")
+    logger.info(f"   start_time recibido: {reservation_data.start_time} (naive: {reservation_data.start_time.tzinfo is None})")
+    logger.info(f"   end_time recibido: {reservation_data.end_time} (naive: {reservation_data.end_time.tzinfo is None})")
+    
+    # Asegurar que las fechas estén en UTC (si vienen con timezone, convertirlas)
+    if reservation_data.start_time.tzinfo is not None:
+        start_time_utc = reservation_data.start_time.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+    else:
+        # Si es naive, asumir que ya está en UTC
+        start_time_utc = reservation_data.start_time
+    
+    if reservation_data.end_time.tzinfo is not None:
+        end_time_utc = reservation_data.end_time.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+    else:
+        end_time_utc = reservation_data.end_time
+    
+    logger.info(f"   start_time UTC (naive): {start_time_utc}")
+    logger.info(f"   end_time UTC (naive): {end_time_utc}")
+    
+    if start_time_utc >= end_time_utc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="End time must be after start time"
@@ -58,13 +81,15 @@ def create_reservation(
         user_id=user_id,
         unit_id=unit_id,
         facility_type=reservation_data.facility_type,
-        start_time=reservation_data.start_time,
-        end_time=reservation_data.end_time,
+        start_time=start_time_utc,
+        end_time=end_time_utc,
         status="confirmed"
     )
     db.add(new_reservation)
     db.commit()
     db.refresh(new_reservation)
+    
+    logger.info(f"✅ Reservación creada: ID={new_reservation.id}, start_time={new_reservation.start_time}")
     return new_reservation
 
 @router.get("", response_model=List[ReservationResponse])
