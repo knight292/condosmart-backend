@@ -12,6 +12,7 @@ class Visit(Base):
     id = Column(UUID, primary_key=True, default=generate_uuid)
     condominium_id = Column(UUID, ForeignKey("condominiums.id"), nullable=False)
     unit_id = Column(UUID, ForeignKey("units.id"), nullable=False)
+    resident_id = Column(UUID, ForeignKey("users.id"), nullable=True)
     visitor_name = Column(String(255), nullable=False)
     visitor_phone = Column(String(20))
     qr_code = Column(String(255), unique=True, nullable=False, index=True)
@@ -24,5 +25,5 @@ class Visit(Base):
 
     condominium = relationship("Condominium", back_populates="visits")
     unit = relationship("Unit", back_populates="visits")
-    resident = relationship("User", back_populates="visits")
+    resident = relationship("User", back_populates="visits", foreign_keys=[resident_id])
 

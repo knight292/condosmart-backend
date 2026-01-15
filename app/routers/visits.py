@@ -77,6 +77,7 @@ def generate_visit(
     new_visit = Visit(
         condominium_id=condo_id,
         unit_id=unit_id,
+        resident_id=str(current_user.id) if (USE_SQLITE and current_user.id) else current_user.id,
         visitor_name=visit_data.visitor_name,
         visitor_phone=visit_data.visitor_phone,
         qr_code=qr_code_value,
@@ -98,10 +99,14 @@ def get_qr_code(
     # Convertir IDs a string si es SQLite
     condo_id = str(current_user.condominium_id) if (USE_SQLITE and current_user.condominium_id) else current_user.condominium_id
     
-    visit = db.query(Visit).filter(
+    visit_query = db.query(Visit).filter(
         Visit.id == visit_id,
         Visit.condominium_id == condo_id
-    ).first()
+    )
+    if current_user.role == "resident":
+        user_id = str(current_user.id) if (USE_SQLITE and current_user.id) else current_user.id
+        visit_query = visit_query.filter(Visit.resident_id == user_id)
+    visit = visit_query.first()
     
     if not visit:
         raise HTTPException(
@@ -176,8 +181,8 @@ def get_visits(
         unit_id = current_user.unit_id
     
     if current_user.role == "resident":
-        if unit_id:
-            query = query.filter(Visit.unit_id == unit_id)
+        user_id = str(current_user.id) if (USE_SQLITE and current_user.id) else current_user.id
+        query = query.filter(Visit.resident_id == user_id)
     elif current_user.role in ["admin", "guard"]:
         if condo_id:
             query = query.filter(Visit.condominium_id == condo_id)
