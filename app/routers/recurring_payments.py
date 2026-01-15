@@ -182,7 +182,9 @@ def create_recurring_payment(
                 Payment.user_id == user_id_for_payment,
                 Payment.condominium_id == condo_id,
                 Payment.status == "pending",
-                Payment.due_date == due_date
+                Payment.due_date == due_date,
+                Payment.amount == payment_data.amount,
+                Payment.currency == payment_data.currency
             ).first()
             
             if existing_payment:
@@ -195,6 +197,7 @@ def create_recurring_payment(
                 condominium_id=condo_id,
                 amount=payment_data.amount,
                 currency=payment_data.currency,
+                description=payment_data.description,
                 due_date=due_date,
                 status="pending"
             )
@@ -521,7 +524,9 @@ def generate_payments_from_recurring(
             Payment.user_id == user_id_value,
             Payment.condominium_id == recurring_condo_id,
             Payment.status == "pending",
-            Payment.due_date == due_date
+            Payment.due_date == due_date,
+            Payment.amount == recurring.amount,
+            Payment.currency == recurring.currency
         ).first()
         
         if existing_payment:
@@ -534,6 +539,7 @@ def generate_payments_from_recurring(
             condominium_id=recurring_condo_id,
             amount=recurring.amount,
             currency=recurring.currency,
+            description=recurring.description,
             due_date=due_date,
             status="pending"
         )
@@ -621,7 +627,9 @@ def generate_all_pending_payments(
                     Payment.user_id == user_id_for_payment,
                     Payment.condominium_id == condo_id,
                     Payment.status == "pending",
-                    Payment.due_date == due_date
+                    Payment.due_date == due_date,
+                    Payment.amount == recurring.amount,
+                    Payment.currency == recurring.currency
                 ).first()
                 
                 if existing_payment:
@@ -632,6 +640,7 @@ def generate_all_pending_payments(
                     condominium_id=condo_id,
                     amount=recurring.amount,
                     currency=recurring.currency,
+                    description=recurring.description,
                     due_date=due_date,
                     status="pending"
                 )

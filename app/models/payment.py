@@ -15,6 +15,7 @@ class Payment(Base):
     amount = Column(Numeric(10, 2), nullable=False)
     currency = Column(String(3), default="MXN")
     status = Column(String(50), default="pending")
+    description = Column(String(255))
     payment_method = Column(String(50))
     payment_gateway = Column(String(50))
     gateway_transaction_id = Column(String(255))

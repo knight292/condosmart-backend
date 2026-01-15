@@ -23,6 +23,7 @@ class PaymentResponse(BaseModel):
     amount: Decimal
     currency: str
     status: str
+    description: Optional[str] = None
     payment_method: Optional[str]
     payment_gateway: Optional[str]
     gateway_transaction_id: Optional[str]
