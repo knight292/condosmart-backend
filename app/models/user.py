@@ -36,7 +36,7 @@ class User(Base):
     payments = relationship("Payment", back_populates="user")
     tickets_reported = relationship("Ticket", foreign_keys="Ticket.reported_by", back_populates="reporter")
     tickets_assigned = relationship("Ticket", foreign_keys="Ticket.assigned_to", back_populates="assignee")
-    visits = relationship("Visit", back_populates="resident")
+    visits = relationship("Visit", back_populates="resident", foreign_keys="Visit.resident_id")
     reservations = relationship("Reservation", back_populates="user")
     announcements_created = relationship("Announcement", back_populates="creator")
     messages_sent = relationship("Message", foreign_keys="Message.sender_id", back_populates="sender")
