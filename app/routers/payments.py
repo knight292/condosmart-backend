@@ -6,7 +6,7 @@ from uuid import UUID
 import logging
 
 from app.db import get_db
-from app.models import Payment, User, PaymentMethod
+from app.models import Payment, User, PaymentMethod, RecurringPayment
 from app.models.uuid_helper import USE_SQLITE
 from app.schemas.payment import PaymentCreate, PaymentResponse, PaymentProcess
 from app.auth import get_current_user
@@ -188,6 +188,23 @@ def get_payments(
             payment_user_id = payment.user_id
         
         user = db.query(User).filter(User.id == payment_user_id).first() if payment_user_id else None
+        description_value = payment.description
+        if not description_value:
+            rp_query = db.query(RecurringPayment).filter(
+                RecurringPayment.condominium_id == payment.condominium_id,
+                RecurringPayment.amount == payment.amount,
+                RecurringPayment.currency == payment.currency
+            )
+            if payment_user_id:
+                rp_query = rp_query.filter(
+                    (RecurringPayment.user_id == payment_user_id) | (RecurringPayment.user_id == None)
+                )
+            rp_query = rp_query.order_by(
+                RecurringPayment.user_id.desc().nulls_last(),
+                RecurringPayment.created_at.desc()
+            )
+            rp = rp_query.first()
+            description_value = rp.description if rp else None
         payment_dict = {
             "id": payment.id,
             "user_id": payment.user_id,
@@ -195,6 +212,7 @@ def get_payments(
             "amount": payment.amount,
             "currency": payment.currency,
             "status": payment.status,
+            "description": description_value,
             "payment_method": payment.payment_method,
             "payment_gateway": payment.payment_gateway,
             "gateway_transaction_id": payment.gateway_transaction_id,
