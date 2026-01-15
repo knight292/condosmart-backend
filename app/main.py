@@ -9,7 +9,7 @@ import logging
 import traceback
 
 from app.db import engine, Base, get_db
-from app.routers import auth, payments, payment_methods, tickets, visits, reservations, announcements, messages, documents, maintenances, contracts, inventory, regulations, owners, users, guard_shifts, guard_availability, shift_templates, shift_swaps, packages, reports, statistics, licenses, recurring_payments
+from app.routers import auth, payments, payment_methods, tickets, visits, reservations, announcements, messages, documents, maintenances, contracts, inventory, regulations, owners, users, guard_shifts, guard_availability, shift_templates, shift_swaps, packages, reports, statistics, licenses, recurring_payments, notifications
 from app.auth import get_current_user, SECRET_KEY, ALGORITHM
 from jose import jwt, JWTError
 from uuid import UUID
@@ -24,7 +24,7 @@ from app.models import (
     User, Condominium, Owner, Unit, Payment, PaymentMethod,
     Ticket, TicketAttachment, Visit, Reservation, Announcement,
     Message, Document, Maintenance, Contract, InventoryItem,
-    Regulation, GuardShift, GuardAvailability, ShiftTemplate, ShiftSwap, Package, License, RecurringPayment
+    Regulation, GuardShift, GuardAvailability, ShiftTemplate, ShiftSwap, Package, License, RecurringPayment, Notification
 )
 
 # Crear todas las tablas (incluyendo payment_methods)
@@ -295,6 +295,7 @@ app.include_router(statistics.router, prefix="/api/statistics", tags=["statistic
 app.include_router(packages.router, prefix="/api/packages", tags=["packages"])
 app.include_router(licenses.router, prefix="/api/licenses", tags=["licenses"])
 app.include_router(recurring_payments.router, prefix="/api/recurring-payments", tags=["recurring-payments"])
+app.include_router(notifications.router, prefix="/api/notifications", tags=["notifications"])
 
 security = HTTPBearer()
 active_connections: dict = {}  # {user_id: websocket}

@@ -21,6 +21,7 @@ from app.models.shift_swap import ShiftSwap
 from app.models.package import Package
 from app.models.license import License
 from app.models.recurring_payment import RecurringPayment
+from app.models.notification import Notification
 
 __all__ = [
     "User",
@@ -47,5 +48,6 @@ __all__ = [
     "Package",
     "License",
     "RecurringPayment",
+    "Notification",
 ]
 

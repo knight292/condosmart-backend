@@ -4,7 +4,7 @@ from typing import List, Optional
 import uuid
 
 from app.db import get_db
-from app.models import Ticket, TicketAttachment, User
+from app.models import Ticket, TicketAttachment, User, Notification
 from app.models.uuid_helper import USE_SQLITE
 from app.schemas.ticket import TicketCreate, TicketResponse, TicketUpdate
 from app.auth import get_current_user
@@ -40,6 +40,41 @@ def create_ticket(
     db.add(new_ticket)
     db.commit()
     db.refresh(new_ticket)
+    
+    # Crear notificaciones para admins y reporte del residente
+    try:
+        notifications = []
+        # Notificar al residente que creó el ticket
+        notifications.append(Notification(
+            user_id=user_id,
+            condominium_id=condo_id,
+            title="Ticket creado",
+            message=f"Tu ticket '{new_ticket.title}' fue creado exitosamente.",
+            type="ticket",
+            action_id=str(new_ticket.id),
+            data={"ticket_id": str(new_ticket.id)}
+        ))
+        
+        admins = db.query(User).filter(
+            User.condominium_id == condo_id,
+            User.role.in_(["admin", "owner"])
+        ).all()
+        for admin in admins:
+            admin_id = str(admin.id) if USE_SQLITE else admin.id
+            notifications.append(Notification(
+                user_id=admin_id,
+                condominium_id=condo_id,
+                title="Nuevo ticket reportado",
+                message=f"{current_user.full_name} reportó: {new_ticket.title}",
+                type="ticket",
+                action_id=str(new_ticket.id),
+                data={"ticket_id": str(new_ticket.id), "reported_by": str(current_user.id)}
+            ))
+        if notifications:
+            db.add_all(notifications)
+            db.commit()
+    except Exception as e:
+        print(f"⚠️ No se pudieron crear notificaciones de ticket: {e}")
     return new_ticket
 
 @router.post("/{ticket_id}/attachments", status_code=status.HTTP_201_CREATED)

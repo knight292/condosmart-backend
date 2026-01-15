@@ -4,7 +4,7 @@ from typing import List, Optional
 from datetime import datetime
 
 from app.db import get_db
-from app.models import Message, User
+from app.models import Message, User, Notification
 from app.schemas.message import MessageCreate, MessageResponse
 from app.auth import get_current_user
 
@@ -84,6 +84,35 @@ def create_message(
     db.add(new_message)
     db.commit()
     db.refresh(new_message)
+    
+    # Crear notificaciones para destinatarios
+    try:
+        recipients = []
+        if message_data.conversation_type == "private" and receiver_id:
+            recipients = db.query(User).filter(User.id == receiver_id).all()
+        else:
+            # Conversación general: notificar a todos menos al emisor
+            recipients = db.query(User).filter(
+                User.condominium_id == condominium_id,
+                User.id != sender_id
+            ).all()
+        
+        notifications = []
+        for user in recipients:
+            notifications.append(Notification(
+                user_id=str(user.id) if USE_SQLITE else user.id,
+                condominium_id=condominium_id,
+                title=f"Nuevo mensaje de {current_user.full_name}",
+                message=message_data.content[:100],
+                type="chat",
+                action_id="chat",
+                data={"message_id": str(new_message.id), "sender_id": str(current_user.id)}
+            ))
+        if notifications:
+            db.add_all(notifications)
+            db.commit()
+    except Exception as e:
+        print(f"⚠️ No se pudieron crear notificaciones de chat: {e}")
     
     # Agregar información del sender
     message_dict = {

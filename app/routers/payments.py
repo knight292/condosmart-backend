@@ -6,7 +6,7 @@ from uuid import UUID
 import logging
 
 from app.db import get_db
-from app.models import Payment, User, PaymentMethod, RecurringPayment
+from app.models import Payment, User, PaymentMethod, RecurringPayment, Notification
 from app.models.uuid_helper import USE_SQLITE
 from app.schemas.payment import PaymentCreate, PaymentResponse, PaymentProcess
 from app.auth import get_current_user
@@ -125,18 +125,21 @@ def create_payment(
         "user_email": target_user.email if target_user else None,
     }
     
-    # Agregar notificación para el usuario
+    # Crear notificación persistente para el usuario
     try:
-        from app.services.notification_service import NotificationService
-        notification_service = NotificationService()
-        notification_service.add_notification(
-            user_id=str(target_user.id) if (USE_SQLITE and target_user.id) else target_user.id,
+        notification = Notification(
+            user_id=target_user_id,
+            condominium_id=condo_id,
             title="Nuevo pago pendiente",
             message=f"Tienes un pago pendiente de ${payment_data.amount} {payment_data.currency} con vencimiento el {payment_data.due_date.strftime('%d/%m/%Y')}",
-            type="payment"
+            type="payment",
+            action_id=str(new_payment.id),
+            data={"payment_id": str(new_payment.id)}
         )
+        db.add(notification)
+        db.commit()
     except Exception as e:
-        logger.warning(f"No se pudo crear notificación: {str(e)}")
+        logger.warning(f"No se pudo crear notificación persistente: {str(e)}")
     
     return payment_dict
 

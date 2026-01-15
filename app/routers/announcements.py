@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List
 
 from app.db import get_db
-from app.models import Announcement, User
+from app.models import Announcement, User, Unit, Notification
 from app.models.uuid_helper import USE_SQLITE
 from app.schemas.announcement import AnnouncementCreate, AnnouncementResponse
 from app.auth import get_current_user
@@ -47,6 +47,44 @@ def create_announcement(
     db.add(new_announcement)
     db.commit()
     db.refresh(new_announcement)
+    
+    # Crear notificaciones para destinatarios del aviso
+    try:
+        users_query = db.query(User).filter(User.condominium_id == condo_id)
+        if announcement_data.target_audience and announcement_data.target_audience != "all":
+            role_map = {
+                "residents": "resident",
+                "guards": "guard",
+                "admins": "admin",
+                "owners": "owner",
+            }
+            target_role = role_map.get(announcement_data.target_audience)
+            if target_role:
+                users_query = users_query.filter(User.role == target_role)
+        
+        if announcement_data.target_unit_id:
+            users_query = users_query.filter(User.unit_id == announcement_data.target_unit_id)
+        elif announcement_data.target_tower:
+            users_query = users_query.filter(User.unit.has(Unit.tower == announcement_data.target_tower))
+        
+        recipients = users_query.all()
+        notifications = []
+        for user in recipients:
+            user_id_value = str(user.id) if USE_SQLITE else user.id
+            notifications.append(Notification(
+                user_id=user_id_value,
+                condominium_id=condo_id,
+                title="Nuevo aviso",
+                message=new_announcement.title,
+                type="announcement",
+                action_id=str(new_announcement.id),
+                data={"announcement_id": str(new_announcement.id)}
+            ))
+        if notifications:
+            db.add_all(notifications)
+            db.commit()
+    except Exception as e:
+        print(f"⚠️ No se pudieron crear notificaciones de aviso: {e}")
     return new_announcement
 
 @router.get("", response_model=List[AnnouncementResponse])
