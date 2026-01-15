@@ -8,6 +8,7 @@ from app.models import Ticket, TicketAttachment, User, Notification
 from app.models.uuid_helper import USE_SQLITE
 from app.schemas.ticket import TicketCreate, TicketResponse, TicketUpdate
 from app.auth import get_current_user
+from app.services.fcm_service import FCMService
 
 router = APIRouter()
 
@@ -44,6 +45,7 @@ def create_ticket(
     # Crear notificaciones para admins y reporte del residente
     try:
         notifications = []
+        fcm_service = FCMService()
         # Notificar al residente que creó el ticket
         notifications.append(Notification(
             user_id=user_id,
@@ -54,6 +56,13 @@ def create_ticket(
             action_id=str(new_ticket.id),
             data={"ticket_id": str(new_ticket.id)}
         ))
+        if current_user.fcm_token:
+            fcm_service.send_notification(
+                device_token=current_user.fcm_token,
+                title="Ticket creado",
+                body=f"Tu ticket '{new_ticket.title}' fue creado exitosamente.",
+                data={"type": "ticket", "ticket_id": str(new_ticket.id)}
+            )
         
         admins = db.query(User).filter(
             User.condominium_id == condo_id,
@@ -70,6 +79,13 @@ def create_ticket(
                 action_id=str(new_ticket.id),
                 data={"ticket_id": str(new_ticket.id), "reported_by": str(current_user.id)}
             ))
+            if admin.fcm_token:
+                fcm_service.send_notification(
+                    device_token=admin.fcm_token,
+                    title="Nuevo ticket reportado",
+                    body=f"{current_user.full_name} reportó: {new_ticket.title}",
+                    data={"type": "ticket", "ticket_id": str(new_ticket.id)}
+                )
         if notifications:
             db.add_all(notifications)
             db.commit()

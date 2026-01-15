@@ -6,7 +6,7 @@ from uuid import UUID
 from app.db import get_db
 from app.models import User, Condominium, Unit
 from app.models.uuid_helper import USE_SQLITE
-from app.schemas.user import UserCreate, UserResponse, UserUpdate
+from app.schemas.user import UserCreate, UserResponse, UserUpdate, FcmTokenUpdate
 from app.auth import get_current_user, get_password_hash
 
 router = APIRouter()
@@ -308,6 +308,19 @@ def update_user(
     db.commit()
     db.refresh(user)
     return user
+
+
+@router.patch("/me/fcm-token", response_model=UserResponse)
+def update_my_fcm_token(
+    token_update: FcmTokenUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Actualizar el FCM token del usuario actual"""
+    current_user.fcm_token = token_update.fcm_token
+    db.commit()
+    db.refresh(current_user)
+    return current_user
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_user(

@@ -11,6 +11,7 @@ import traceback
 from app.db import engine, Base, get_db
 from app.routers import auth, payments, payment_methods, tickets, visits, reservations, announcements, messages, documents, maintenances, contracts, inventory, regulations, owners, users, guard_shifts, guard_availability, shift_templates, shift_swaps, packages, reports, statistics, licenses, recurring_payments, notifications
 from app.auth import get_current_user, SECRET_KEY, ALGORITHM
+from app.services.fcm_service import FCMService
 from jose import jwt, JWTError
 from uuid import UUID
 import json
@@ -411,6 +412,38 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(None)):
             db.refresh(new_message)
             
             print(f"💬 [{user.email}] Mensaje guardado: {content[:50]}...")
+
+            # Crear notificaciones persistentes y push para otros usuarios
+            try:
+                fcm_service = FCMService()
+                recipients = db.query(User).filter(
+                    User.condominium_id == user.condominium_id,
+                    User.id != user.id
+                ).all()
+                notifications = []
+                for recipient in recipients:
+                    recipient_id = str(recipient.id) if USE_SQLITE else recipient.id
+                    notifications.append(Notification(
+                        user_id=recipient_id,
+                        condominium_id=condominium_id,
+                        title=f"Nuevo mensaje de {user.full_name}",
+                        message=content[:100],
+                        type="chat",
+                        action_id="chat",
+                        data={"message_id": str(new_message.id), "sender_id": str(user.id)}
+                    ))
+                    if recipient.fcm_token:
+                        fcm_service.send_notification(
+                            device_token=recipient.fcm_token,
+                            title=f"Nuevo mensaje de {user.full_name}",
+                            body=content[:100],
+                            data={"type": "chat", "message_id": str(new_message.id)}
+                        )
+                if notifications:
+                    db.add_all(notifications)
+                    db.commit()
+            except Exception as e:
+                print(f"⚠️ No se pudieron crear notificaciones push de chat: {e}")
             
             # Preparar mensaje para enviar
             message_data = {

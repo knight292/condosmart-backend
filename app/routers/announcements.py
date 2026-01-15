@@ -7,6 +7,7 @@ from app.models import Announcement, User, Unit, Notification
 from app.models.uuid_helper import USE_SQLITE
 from app.schemas.announcement import AnnouncementCreate, AnnouncementResponse
 from app.auth import get_current_user
+from app.services.fcm_service import FCMService
 
 router = APIRouter()
 
@@ -50,6 +51,7 @@ def create_announcement(
     
     # Crear notificaciones para destinatarios del aviso
     try:
+        fcm_service = FCMService()
         users_query = db.query(User).filter(User.condominium_id == condo_id)
         if announcement_data.target_audience and announcement_data.target_audience != "all":
             role_map = {
@@ -80,6 +82,13 @@ def create_announcement(
                 action_id=str(new_announcement.id),
                 data={"announcement_id": str(new_announcement.id)}
             ))
+            if user.fcm_token:
+                fcm_service.send_notification(
+                    device_token=user.fcm_token,
+                    title="Nuevo aviso",
+                    body=new_announcement.title,
+                    data={"type": "announcement", "announcement_id": str(new_announcement.id)}
+                )
         if notifications:
             db.add_all(notifications)
             db.commit()

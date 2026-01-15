@@ -7,6 +7,7 @@ from app.db import get_db
 from app.models import Message, User, Notification
 from app.schemas.message import MessageCreate, MessageResponse
 from app.auth import get_current_user
+from app.services.fcm_service import FCMService
 
 router = APIRouter()
 
@@ -87,6 +88,7 @@ def create_message(
     
     # Crear notificaciones para destinatarios
     try:
+        fcm_service = FCMService()
         recipients = []
         if message_data.conversation_type == "private" and receiver_id:
             recipients = db.query(User).filter(User.id == receiver_id).all()
@@ -108,6 +110,13 @@ def create_message(
                 action_id="chat",
                 data={"message_id": str(new_message.id), "sender_id": str(current_user.id)}
             ))
+            if user.fcm_token:
+                fcm_service.send_notification(
+                    device_token=user.fcm_token,
+                    title=f"Nuevo mensaje de {current_user.full_name}",
+                    body=message_data.content[:100],
+                    data={"type": "chat", "message_id": str(new_message.id)}
+                )
         if notifications:
             db.add_all(notifications)
             db.commit()

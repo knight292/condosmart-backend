@@ -10,6 +10,7 @@ from app.models import Payment, User, PaymentMethod, RecurringPayment, Notificat
 from app.models.uuid_helper import USE_SQLITE
 from app.schemas.payment import PaymentCreate, PaymentResponse, PaymentProcess
 from app.auth import get_current_user
+from app.services.fcm_service import FCMService
 
 logger = logging.getLogger(__name__)
 
@@ -138,6 +139,14 @@ def create_payment(
         )
         db.add(notification)
         db.commit()
+        # Enviar push si tiene token
+        if target_user and target_user.fcm_token:
+            FCMService().send_notification(
+                device_token=target_user.fcm_token,
+                title=notification.title,
+                body=notification.message,
+                data={"type": "payment", "payment_id": str(new_payment.id)}
+            )
     except Exception as e:
         logger.warning(f"No se pudo crear notificación persistente: {str(e)}")
     

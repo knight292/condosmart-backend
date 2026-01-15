@@ -22,6 +22,9 @@ class UserUpdate(BaseModel):
     unit_id: Optional[UUID] = None  # Permitir cambiar la unidad del usuario
     role: Optional[str] = None  # Permitir cambiar el rol (solo super_admin)
 
+class FcmTokenUpdate(BaseModel):
+    fcm_token: Optional[str] = None
+
 class UserResponse(BaseModel):
     id: UUID
     email: str
