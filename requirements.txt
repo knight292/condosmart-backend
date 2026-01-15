@@ -10,4 +10,5 @@ pydantic[email]==2.5.0
 qrcode[pil]==7.4.2
 python-dotenv==1.0.0
 requests==2.31.0
+google-auth==2.34.0
 
