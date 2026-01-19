@@ -38,3 +38,7 @@ class License(Base):
     condominium = relationship("Condominium", back_populates="license", uselist=False)
     activator = relationship("User", foreign_keys=[activated_by])
 
+    @property
+    def condominium_id(self):
+        # Exponer condominium_id para schemas que lo requieren
+        return self.condominium.id if self.condominium else None

@@ -8,8 +8,8 @@ import string
 from app.db import get_db
 from app.models import License, Condominium, User
 from app.models.uuid_helper import USE_SQLITE
-from app.schemas.license import LicenseCreate, LicenseActivate, LicenseResponse, LicenseValidation
-from app.auth import get_current_user
+from app.schemas.license import LicenseCreate, LicenseActivate, LicenseActivatePublic, LicenseResponse, LicenseValidation
+from app.auth import get_current_user, get_password_hash
 
 router = APIRouter()
 
@@ -234,6 +234,75 @@ def activate_license(
     db.commit()
     db.refresh(license)
     
+    return license
+
+@router.post("/activate-public", response_model=LicenseResponse)
+def activate_license_public(
+    activation_data: LicenseActivatePublic,
+    db: Session = Depends(get_db)
+):
+    """
+    Activa una licencia y crea el primer admin y condominio sin requerir login.
+    """
+    license = db.query(License).filter(License.code == activation_data.code.upper()).first()
+    
+    if not license:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Código de licencia no encontrado"
+        )
+    
+    if license.activated:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Esta licencia ya fue activada"
+        )
+    
+    if license.expires_at and license.expires_at < datetime.utcnow():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Esta licencia ha expirado"
+        )
+
+    existing_user = db.query(User).filter(User.email == activation_data.admin_email).first()
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El email ya está registrado"
+        )
+
+    # Crear condominio
+    condominium = Condominium(
+        name=activation_data.condominium_name,
+        address=activation_data.condominium_address,
+        license_id=license.id if not USE_SQLITE else str(license.id),
+        subscription_plan=license.package_type,
+        subscription_status="active"
+    )
+    db.add(condominium)
+    db.flush()
+
+    # Crear admin inicial
+    admin_user = User(
+        email=activation_data.admin_email,
+        password_hash=get_password_hash(activation_data.admin_password),
+        full_name=activation_data.admin_name,
+        phone=activation_data.admin_phone,
+        role="admin",
+        condominium_id=str(condominium.id) if USE_SQLITE else condominium.id,
+        is_active=True
+    )
+    db.add(admin_user)
+
+    # Activar licencia
+    license.activated = True
+    license.activated_at = datetime.utcnow()
+    license.activated_by = str(admin_user.id) if USE_SQLITE else admin_user.id
+    condominium.license_id = str(license.id) if USE_SQLITE else license.id
+
+    db.commit()
+    db.refresh(license)
+
     return license
 
 @router.get("/my-license", response_model=LicenseResponse)

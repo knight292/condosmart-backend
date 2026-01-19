@@ -21,6 +21,15 @@ class LicenseActivate(BaseModel):
     condominium_name: str
     condominium_address: Optional[str] = None
 
+class LicenseActivatePublic(BaseModel):
+    code: str
+    condominium_name: str
+    condominium_address: Optional[str] = None
+    admin_name: str
+    admin_email: EmailStr
+    admin_password: str
+    admin_phone: Optional[str] = None
+
 class LicenseResponse(BaseModel):
     id: UUID
     code: str
