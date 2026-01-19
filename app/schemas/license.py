@@ -25,13 +25,13 @@ class LicenseResponse(BaseModel):
     id: UUID
     code: str
     package_type: str
-    max_units: Optional[int]
-    max_users: Optional[int]
+    max_units: Optional[int] = None
+    max_users: Optional[int] = None
     activated: bool
-    activated_at: Optional[datetime]
+    activated_at: Optional[datetime] = None
     purchase_date: datetime
-    expires_at: Optional[datetime]
-    condominium_id: Optional[UUID]
+    expires_at: Optional[datetime] = None
+    condominium_id: Optional[UUID] = None
     
     class Config:
         from_attributes = True
