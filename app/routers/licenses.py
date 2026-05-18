@@ -7,6 +7,7 @@ import string
 
 from app.db import get_db
 from app.models import License, Condominium, User
+from app.services.condominium_settings import apply_default_settings
 from app.models.uuid_helper import USE_SQLITE
 from app.schemas.license import LicenseCreate, LicenseActivate, LicenseActivatePublic, LicenseResponse, LicenseValidation
 from app.auth import get_current_user, get_password_hash
@@ -212,6 +213,7 @@ def activate_license(
             subscription_plan=license.package_type,
             subscription_status="active"
         )
+        apply_default_settings(condominium)
         db.add(condominium)
         db.flush()
         
@@ -279,6 +281,7 @@ def activate_license_public(
         subscription_plan=license.package_type,
         subscription_status="active"
     )
+    apply_default_settings(condominium)
     db.add(condominium)
     db.flush()
 

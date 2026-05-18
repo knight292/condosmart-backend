@@ -25,6 +25,7 @@ def generate_qr_code(data: str) -> str:
     img_str = base64.b64encode(buffer.getvalue()).decode()
     return f"data:image/png;base64,{img_str}"
 
+
 @router.post("/generate", response_model=VisitResponse, status_code=status.HTTP_201_CREATED)
 @router.post("/generate/", response_model=VisitResponse, status_code=status.HTTP_201_CREATED)
 def generate_visit(

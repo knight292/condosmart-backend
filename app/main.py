@@ -9,7 +9,7 @@ import logging
 import traceback
 
 from app.db import engine, Base, get_db
-from app.routers import auth, payments, payment_methods, tickets, visits, reservations, announcements, messages, documents, maintenances, contracts, inventory, regulations, owners, users, guard_shifts, guard_availability, shift_templates, shift_swaps, packages, reports, statistics, licenses, recurring_payments, notifications
+from app.routers import auth, payments, payment_methods, tickets, visits, reservations, announcements, messages, documents, maintenances, contracts, inventory, regulations, owners, users, guard_shifts, guard_availability, shift_templates, shift_swaps, packages, reports, statistics, licenses, recurring_payments, notifications, condominiums
 from app.auth import get_current_user, SECRET_KEY, ALGORITHM
 from app.services.fcm_service import FCMService
 from jose import jwt, JWTError
@@ -94,6 +94,7 @@ def initialize_test_users():
         condominium = db.query(Condominium).first()
         if not condominium:
             condo_id = str(uuid.uuid4()) if USE_SQLITE else uuid.uuid4()
+            from app.services.condominium_settings import apply_default_settings
             condominium = Condominium(
                 id=condo_id,
                 name="Condominio Prueba",
@@ -101,6 +102,7 @@ def initialize_test_users():
                 subscription_plan="premium",
                 subscription_status="active"
             )
+            apply_default_settings(condominium)
             db.add(condominium)
             db.commit()
             db.refresh(condominium)
@@ -234,11 +236,22 @@ def initialize_test_users():
     finally:
         db.close()
 
-# Inicializar usuarios de prueba al iniciar (solo si la base está vacía)
+def ensure_condominium_settings_schema():
+    """Asegura columna settings y rellena valores por defecto en condominios existentes."""
+    try:
+        from migrate_add_condominium_settings import ensure_settings_column, backfill_default_settings
+        ensure_settings_column()
+        backfill_default_settings()
+    except Exception as e:
+        logger.warning(f"⚠️  No se pudo migrar condominium settings: {str(e)}")
+
+
+# Migración de configuración por condominio + usuarios de prueba al iniciar
 try:
+    ensure_condominium_settings_schema()
     initialize_test_users()
 except Exception as e:
-    logger.warning(f"⚠️  No se pudieron inicializar usuarios de prueba: {str(e)}")
+    logger.warning(f"⚠️  No se pudieron inicializar datos al arranque: {str(e)}")
 
 app = FastAPI(title="CondoSmart API", version="1.0.0", redirect_slashes=False)
 
@@ -286,6 +299,7 @@ app.include_router(contracts.router, prefix="/api/contracts", tags=["contracts"]
 app.include_router(inventory.router, prefix="/api/inventory", tags=["inventory"])
 app.include_router(regulations.router, prefix="/api/regulations", tags=["regulations"])
 app.include_router(owners.router, prefix="/api/owners", tags=["owners"])
+app.include_router(condominiums.router, prefix="/api/condominiums", tags=["condominiums"])
 app.include_router(users.router, prefix="/api/users", tags=["users"])
 app.include_router(guard_shifts.router, prefix="/api/guard-shifts", tags=["guard-shifts"])
 app.include_router(guard_availability.router, prefix="/api/guard-availability", tags=["guard-availability"])

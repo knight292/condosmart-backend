@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime, ForeignKey
+from sqlalchemy import Column, String, DateTime, ForeignKey, Text
 from app.models.uuid_helper import UUID, generate_uuid
 
 from sqlalchemy.orm import relationship
@@ -16,6 +16,7 @@ class Condominium(Base):
     address = Column(String(500))
     subscription_plan = Column(String(50))
     subscription_status = Column(String(50), default="active")
+    settings = Column(Text, nullable=True)  # JSON: branding, modules, access, locale
     created_at = Column(DateTime, default=datetime.utcnow)
 
     owner = relationship("Owner", back_populates="condominiums")
