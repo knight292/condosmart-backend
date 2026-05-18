@@ -9,8 +9,9 @@ from app.models import Package, User
 from app.models.uuid_helper import USE_SQLITE
 from app.schemas.package import PackageCreate, PackageUpdate, PackageResponse
 from app.auth import get_current_user
+from app.deps.modules import require_module
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_module("packages"))])
 
 @router.post("/", response_model=PackageResponse, status_code=status.HTTP_201_CREATED)
 def create_package(

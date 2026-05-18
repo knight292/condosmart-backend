@@ -7,8 +7,9 @@ from app.models import GuardAvailability, User
 from app.models.uuid_helper import USE_SQLITE
 from app.schemas.guard_availability import GuardAvailabilityCreate, GuardAvailabilityUpdate, GuardAvailabilityResponse
 from app.auth import get_current_user
+from app.deps.modules import require_module
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_module("guard_shifts"))])
 
 @router.post("/", response_model=GuardAvailabilityResponse, status_code=status.HTTP_201_CREATED)
 def create_availability(

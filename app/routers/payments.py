@@ -10,11 +10,12 @@ from app.models import Payment, User, PaymentMethod, RecurringPayment, Notificat
 from app.models.uuid_helper import USE_SQLITE
 from app.schemas.payment import PaymentCreate, PaymentResponse, PaymentProcess
 from app.auth import get_current_user
+from app.deps.modules import require_module
 from app.services.fcm_service import FCMService
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_module("payments"))])
 
 @router.post("", response_model=PaymentResponse, status_code=status.HTTP_201_CREATED)
 @router.post("/", response_model=PaymentResponse, status_code=status.HTTP_201_CREATED)

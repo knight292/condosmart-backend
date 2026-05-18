@@ -8,8 +8,13 @@ from app.models import PaymentMethod, User, Condominium
 from app.models.uuid_helper import USE_SQLITE
 from app.schemas.payment_method import PaymentMethodCreate, PaymentMethodUpdate, PaymentMethodResponse
 from app.auth import get_current_user
+from app.deps.modules import require_module
 
-router = APIRouter(prefix="/payment-methods", tags=["payment-methods"])
+router = APIRouter(
+    prefix="/payment-methods",
+    tags=["payment-methods"],
+    dependencies=[Depends(require_module("payments"))],
+)
 
 @router.get("", response_model=List[PaymentMethodResponse])
 @router.get("/", response_model=List[PaymentMethodResponse])

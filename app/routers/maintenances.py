@@ -8,8 +8,9 @@ from app.db import get_db
 from app.models import Maintenance, User, Announcement
 from app.schemas.maintenance import MaintenanceCreate, MaintenanceUpdate, MaintenanceResponse
 from app.auth import get_current_user
+from app.deps.modules import require_module
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_module("maintenance"))])
 
 @router.post("/", response_model=MaintenanceResponse, status_code=status.HTTP_201_CREATED)
 def create_maintenance(

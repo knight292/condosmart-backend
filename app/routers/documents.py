@@ -9,8 +9,9 @@ from app.models import Document, User
 from app.models.uuid_helper import USE_SQLITE
 from app.schemas.document import DocumentCreate, DocumentResponse
 from app.auth import get_current_user
+from app.deps.modules import require_module
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_module("documents"))])
 
 UPLOAD_DIR = "uploads/documents"
 

@@ -7,8 +7,9 @@ from app.models import ShiftSwap, GuardShift, User
 from app.models.uuid_helper import USE_SQLITE
 from app.schemas.shift_swap import ShiftSwapCreate, ShiftSwapUpdate, ShiftSwapResponse
 from app.auth import get_current_user
+from app.deps.modules import require_module
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_module("guard_shifts"))])
 
 @router.post("/", response_model=ShiftSwapResponse, status_code=status.HTTP_201_CREATED)
 def create_swap_request(

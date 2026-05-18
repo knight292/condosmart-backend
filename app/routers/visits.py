@@ -12,8 +12,9 @@ from app.models import Visit, User
 from app.models.uuid_helper import USE_SQLITE
 from app.schemas.visit import VisitCreate, VisitResponse, VisitScan
 from app.auth import get_current_user
+from app.deps.modules import require_module
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_module("visits"))])
 
 def generate_qr_code(data: str) -> str:
     qr = qrcode.QRCode(version=1, box_size=10, border=5)

@@ -7,9 +7,10 @@ from app.models import Announcement, User, Unit, Notification
 from app.models.uuid_helper import USE_SQLITE
 from app.schemas.announcement import AnnouncementCreate, AnnouncementResponse
 from app.auth import get_current_user
+from app.deps.modules import require_module
 from app.services.fcm_service import FCMService
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_module("announcements"))])
 
 @router.post("", response_model=AnnouncementResponse, status_code=status.HTTP_201_CREATED)
 @router.post("/", response_model=AnnouncementResponse, status_code=status.HTTP_201_CREATED)

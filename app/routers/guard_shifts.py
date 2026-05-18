@@ -7,10 +7,11 @@ from app.models import GuardShift, User
 from app.models.uuid_helper import USE_SQLITE
 from app.schemas.guard_shift import GuardShiftCreate, GuardShiftResponse, GuardShiftUpdate
 from app.auth import get_current_user
+from app.deps.modules import require_module
 from app.services.email_service import EmailService
 from app.services.fcm_service import FCMService
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_module("guard_shifts"))])
 
 def _calculate_shift_times(shift_date: datetime, shift_type: str):
     """Calcula shift_start y shift_end basado en shift_date y shift_type"""

@@ -9,8 +9,9 @@ from app.models import Contract, User, Announcement
 from app.models.uuid_helper import USE_SQLITE
 from app.schemas.contract import ContractCreate, ContractUpdate, ContractResponse
 from app.auth import get_current_user
+from app.deps.modules import require_module
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_module("contracts"))])
 
 def calculate_renewal_date(end_date: date) -> date:
     """Calcula la fecha de renovación (1 mes antes de end_date)"""

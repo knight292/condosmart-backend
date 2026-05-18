@@ -12,9 +12,10 @@ from app.schemas.recurring_payment import (
     RecurringPaymentCreate, RecurringPaymentUpdate, RecurringPaymentResponse
 )
 from app.auth import get_current_user
+from app.deps.modules import require_module
 
 logger = logging.getLogger(__name__)
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_module("recurring_payments"))])
 
 def calculate_next_generation(current_date: date, frequency: str, day_of_month: int) -> date:
     """Calcula la próxima fecha de generación"""

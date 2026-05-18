@@ -7,9 +7,10 @@ from app.models import ShiftTemplate, User, GuardShift
 from app.models.uuid_helper import USE_SQLITE
 from app.schemas.shift_template import ShiftTemplateCreate, ShiftTemplateUpdate, ShiftTemplateResponse
 from app.auth import get_current_user
+from app.deps.modules import require_module
 import json
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_module("guard_shifts"))])
 
 @router.post("/", response_model=ShiftTemplateResponse, status_code=status.HTTP_201_CREATED)
 def create_template(

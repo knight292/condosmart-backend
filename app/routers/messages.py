@@ -7,9 +7,10 @@ from app.db import get_db
 from app.models import Message, User, Notification
 from app.schemas.message import MessageCreate, MessageResponse
 from app.auth import get_current_user
+from app.deps.modules import require_module
 from app.services.fcm_service import FCMService
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_module("messages"))])
 
 @router.get("/", response_model=List[MessageResponse])
 def get_messages(

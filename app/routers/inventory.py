@@ -8,8 +8,9 @@ from app.models import InventoryItem, User
 from app.models.uuid_helper import USE_SQLITE
 from app.schemas.inventory import InventoryItemCreate, InventoryItemUpdate, InventoryItemResponse
 from app.auth import get_current_user
+from app.deps.modules import require_module
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_module("inventory"))])
 
 @router.post("/", response_model=InventoryItemResponse, status_code=status.HTTP_201_CREATED)
 def create_inventory_item(
