@@ -37,8 +37,9 @@ def _get_condominium_or_404(db: Session, condominium_id) -> Condominium:
 
 
 def _can_view_config(user: User, condominium: Condominium) -> bool:
+    # Super admin gestiona licencias, no la operación diaria del condominio.
     if user.role == "super_admin":
-        return True
+        return False
     if user.role == "owner" and user.owner_id and condominium.owner_id:
         if USE_SQLITE:
             return str(user.owner_id) == str(condominium.owner_id)
@@ -52,7 +53,7 @@ def _can_view_config(user: User, condominium: Condominium) -> bool:
 
 def _can_edit_config(user: User, condominium: Condominium) -> bool:
     if user.role == "super_admin":
-        return True
+        return False
     if user.role == "admin" and user.condominium_id:
         if USE_SQLITE:
             return str(user.condominium_id) == str(condominium.id)
@@ -88,6 +89,11 @@ def get_my_condominium_config(
     db: Session = Depends(get_db),
 ):
     """Configuración del condominio del usuario autenticado."""
+    if current_user.role == "super_admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Super admin no tiene acceso a la configuración de condominios",
+        )
     if not current_user.condominium_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -134,7 +140,7 @@ def update_condominium_config(
     if not _can_edit_config(current_user, condominium):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only admin, owner or super_admin can update condominium configuration",
+            detail="Solo el administrador del condominio o el owner pueden actualizar la configuración",
         )
 
     patch = validate_settings_patch(update_data.to_patch_dict())
